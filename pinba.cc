@@ -1259,7 +1259,6 @@ static PHP_MINFO_FUNCTION(pinba)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "Pinba support", "enabled");
 	php_info_print_table_row(2, "Extension version", PHP_PINBA_VERSION);
-	php_info_print_table_row(2, "Revision", "$Revision: 1.1.2.9 $");
 	php_info_print_table_row(2, "Google Protocol Buffers version", version.c_str());
 	php_info_print_table_end();
 
