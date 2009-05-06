@@ -954,8 +954,9 @@ static PHP_FUNCTION(pinba_timer_tags_replace)
 static PHP_FUNCTION(pinba_flush)
 {
 	char *script_name = NULL;
+	int script_name_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &script_name) != SUCCESS) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &script_name, &script_name_len) != SUCCESS) {
 		return;
 	}
 
@@ -1080,6 +1081,26 @@ static PHP_FUNCTION(pinba_timers_stop)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_script_name_set(string custom_script_name)
+   Set custom script name */
+static PHP_FUNCTION(pinba_script_name_set)
+{
+	char *script_name;
+	int script_name_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &script_name, &script_name_len) != SUCCESS) {
+		return;
+	}
+
+	if (PINBA_G(script_name)) {
+		efree(PINBA_G(script_name));
+	}
+
+	PINBA_G(script_name) = estrndup(script_name, script_name_len);
+	RETURN_TRUE;
+}
+/* }}} */
+
 /* {{{ pinba_functions[]
  */
 function_entry pinba_functions[] = {
@@ -1094,6 +1115,7 @@ function_entry pinba_functions[] = {
 	PHP_FE(pinba_get_info, NULL)
 	PHP_FE(pinba_timer_get_info, NULL)
 	PHP_FE(pinba_timers_stop, NULL)
+	PHP_FE(pinba_script_name_set, NULL)
 	{NULL, NULL, NULL}
 };
 /* }}} */
