@@ -322,6 +322,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable timer
 	request->set_request_time(timeval_to_float(record.req_time));
 	request->set_ru_utime(timeval_to_float(record.ru_utime));
 	request->set_ru_stime(timeval_to_float(record.ru_stime));
+	request->set_status(SG(sapi_headers).http_response_code);
 
 	/* timers */
 	if (timers_num > 0) {
