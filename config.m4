@@ -44,7 +44,7 @@ if test "$PHP_PINBA" != "no"; then
   PHP_ADD_LIBRARY_WITH_PATH(stdc++, "", PINBA_SHARED_LIBADD)
   PHP_ADD_LIBRARY_WITH_PATH(protobuf, $PROTOBUF_DIR/lib, PINBA_SHARED_LIBADD)
   PHP_SUBST(PINBA_SHARED_LIBADD)
-  PHP_NEW_EXTENSION(pinba, pinba.cc pinba-pb.cc, $ext_shared)
+  PHP_NEW_EXTENSION(pinba, pinba.cc pinba-pb.cc, $ext_shared,, -DNDEBUG)
 
   AC_MSG_NOTICE([Regenerating protocol code])
   `$PROTOC -I$ext_srcdir $ext_srcdir/pinba.proto --cpp_out=$ext_srcdir`
