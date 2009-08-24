@@ -34,10 +34,42 @@ if test "$PHP_PINBA" != "no"; then
   AC_MSG_CHECKING([for Google Protobuf compiler])
   PROTOC="x"
   if ! test -x "$PROTOBUF_DIR/bin/protoc"; then
-    AC_MSG_ERROR([Unable to find Protobuf compiler (protoc)])
+    AC_MSG_ERROR([Unable to find Protobuf compiler (protoc) in $PROTOBUF_DIR/bin])
   else
     PROTOC="$PROTOBUF_DIR/bin/protoc"
     AC_MSG_RESULT([$PROTOC])
+  fi
+
+  AC_MSG_CHECKING([for Google Protobuf version])
+  gpb_full_version=`$PROTOC --version | $SED -e 's/libprotoc //'`
+  ac_IFS=$IFS
+  IFS="."
+  set $gpb_full_version
+  IFS=$ac_IFS
+  GPB_VERSION=`expr [$]1 \* 1000000 + [$]2 \* 1000 + [$]3`
+  AC_MSG_RESULT([$gpb_full_version])
+
+  dnl Google Protobuf >= 2.1.0 uses pthread_once() in its headers
+  if test "$GPB_VERSION" -ge "2001000"; then
+    old_LDFLAGS=$LDFLAGS
+    LDFLAGS=-lpthread
+    THREAD_LIB=""
+    AC_CHECK_FUNC(pthread_once,[
+      THREAD_LIB=pthread
+    ],[
+      LDFLAGS=-lc_r
+      AC_CHECK_FUNC(pthread_once, [
+        THREAD_LIB=c_r
+      ],[
+        LDFLAGS=-lc
+        AC_CHECK_FUNC(pthread_once, [
+          THREAD_LIB=c
+        ],[
+          AC_MSG_ERROR([pthread_once() is required for Google Protocol Buffers >= 2.1.0, but it could not be found, exiting])
+        ])
+      ])
+    ])
+    PHP_ADD_LIBRARY([$THREAD_LIB])
   fi
 
   PHP_REQUIRE_CXX
