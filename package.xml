@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package packagerversion="1.4.11" version="2.0" xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0
+http://pear.php.net/dtd/tasks-1.0.xsd
+http://pear.php.net/dtd/package-2.0
+http://pear.php.net/dtd/package-2.0.xsd">
+ <name>pinba</name>
+ <channel>pecl.php.net</channel>
+ <summary>Pinba</summary>
+ <description>Client extension for Pinba statistics server.
+ </description>
+ <lead>
+  <name>Antony Dovgal</name>
+  <user>tony2001</user>
+  <email>tony2001@php.net</email>
+  <active>yes</active>
+ </lead>
+ <date>2009-08-26</date>
+ <time>14:00:00</time>
+ <version>
+  <release>0.0.4</release>
+  <api>0.0.4</api>
+ </version>
+ <stability>
+  <release>beta</release>
+  <api>beta</api>
+ </stability>
+ <license uri="http://www.php.net/license">PHP</license>
+ <notes>- Added HTTP response status to the response data.
+- Added support of Google Protocol Buffers 2.1.0+.
+- Added pinba_script_name_set() function.
+ </notes>
+ <contents>
+  <dir name="/">
+   <file name="config.m4" role="src" />
+   <file name="CREDITS" role="doc" />
+   <file name="NEWS" role="doc" />
+   <file name="README" role="doc" />
+   <file name="pinba.proto" role="src" />
+   <file name="pinba.cc" role="src" />
+   <file name="php_pinba.h" role="src" />
+  </dir> <!-- / -->
+ </contents>
+ <dependencies>
+  <required>
+   <php>
+    <min>4.4.8</min>
+    <max>6.0.0</max>
+    <exclude>6.0.0</exclude>
+   </php>
+   <pearinstaller>
+    <min>1.4.0b1</min>
+   </pearinstaller>
+  </required>
+ </dependencies>
+ <providesextension>pinba</providesextension>
+ <extsrcrelease>
+  <configureoption default="autodetect" name="with-pinba" prompt="Please provide the prefix of Google Protocol Buffers installation" />
+ </extsrcrelease>
+ <changelog>
+  <release>
+   <stability><release>beta</release><api>beta</api></stability>
+   <version><release>0.0.3</release><api>0.0.3</api></version>
+   <date>2009-05-04</date>
+   <notes>- Initial release. 
+   </notes>
+  </release>
+ </changelog>
+</package>
