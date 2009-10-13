@@ -72,9 +72,13 @@ if test "$PHP_PINBA" != "no"; then
     PHP_ADD_LIBRARY([$THREAD_LIB])
   fi
 
+  if test "x$PHP_LIBDIR" = "x"; then
+    PHP_LIBDIR=lib
+  fi
+
   PHP_REQUIRE_CXX
   PHP_ADD_LIBRARY_WITH_PATH(stdc++, "", PINBA_SHARED_LIBADD)
-  PHP_ADD_LIBRARY_WITH_PATH(protobuf, $PROTOBUF_DIR/lib, PINBA_SHARED_LIBADD)
+  PHP_ADD_LIBRARY_WITH_PATH(protobuf, $PROTOBUF_DIR/$PHP_LIBDIR, PINBA_SHARED_LIBADD)
   PHP_SUBST(PINBA_SHARED_LIBADD)
   PHP_NEW_EXTENSION(pinba, pinba.cc pinba-pb.cc, $ext_shared,, -DNDEBUG)
 
