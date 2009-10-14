@@ -88,6 +88,10 @@ typedef struct _pinba_timer { /* {{{ */
 		int tv_usec;
 	} value;
 	zval *data;
+	struct timeval tmp_ru_utime;
+	struct timeval tmp_ru_stime;
+	struct timeval ru_utime;
+	struct timeval ru_stime;
 } pinba_timer_t;
 /* }}} */
 
@@ -102,6 +106,7 @@ typedef struct _pinba_timer { /* {{{ */
 static inline int php_pinba_timer_stop(pinba_timer_t *t) /* {{{ */
 {
 	struct timeval now;
+	struct rusage u, tmp;
 	
 	if (!t->started) {
 		return FAILURE;
@@ -109,6 +114,13 @@ static inline int php_pinba_timer_stop(pinba_timer_t *t) /* {{{ */
 	
 	gettimeofday(&now, 0);
 	timersub(&now, &t->start, &t->value);
+	
+	if (getrusage(RUSAGE_SELF, &u) == 0) {
+		timersub(&u.ru_utime, &t->tmp_ru_utime, &tmp.ru_utime);
+		timersub(&u.ru_stime, &t->tmp_ru_stime, &tmp.ru_stime);
+		timeradd(&t->ru_utime, &tmp.ru_utime, &t->ru_utime);
+		timeradd(&t->ru_stime, &tmp.ru_stime, &t->ru_stime);
+	}
 	
 	t->started = 0;
 	return SUCCESS;
@@ -641,6 +653,9 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info TSRMLS_DC) /* 
 	} else {
 		add_assoc_null_ex(info, "data", sizeof("data"));
 	}
+	
+	add_assoc_double_ex(info, "ru_utime", sizeof("ru_utime"), timeval_to_float(t->ru_utime));
+	add_assoc_double_ex(info, "ru_stime", sizeof("ru_stime"), timeval_to_float(t->ru_stime));
 }
 /* }}} */
 
@@ -655,6 +670,7 @@ static PHP_FUNCTION(pinba_timer_start)
 	pinba_timer_tag_t **tags;
 	struct timeval now;
 	int tags_num;
+	struct rusage u;
 
 	if (PINBA_G(timers_stopped)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "all timers have already been stopped");
@@ -689,6 +705,10 @@ static PHP_FUNCTION(pinba_timer_start)
 
 	t->rsrc_id = zend_list_insert(t, le_pinba_timer);
 
+	if (getrusage(RUSAGE_SELF, &u) == 0) {
+		timeval_cvt(&t->tmp_ru_utime, &u.ru_utime);
+		timeval_cvt(&t->tmp_ru_stime, &u.ru_stime);
+	}
 	/* refcount++ so that the timer is shut down only on request finish if not stopped manually */
 	zend_list_addref(t->rsrc_id);
 	RETURN_RESOURCE(t->rsrc_id);
