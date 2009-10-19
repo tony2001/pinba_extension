@@ -14,20 +14,18 @@ http://pear.php.net/dtd/package-2.0.xsd">
   <email>tony2001@php.net</email>
   <active>yes</active>
  </lead>
- <date>2009-08-26</date>
- <time>14:00:00</time>
+ <date>2009-10-19</date>
+ <time>17:00:00</time>
  <version>
-  <release>0.0.4</release>
-  <api>0.0.4</api>
+  <release>0.0.5</release>
+  <api>0.0.5</api>
  </version>
  <stability>
   <release>beta</release>
   <api>beta</api>
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
- <notes>- Added HTTP response status to the response data.
-- Added support of Google Protocol Buffers 2.1.0+.
-- Added pinba_script_name_set() function.
+ <notes>- Added rusage to timers (not sent to the server, to be discussed) 
  </notes>
  <contents>
   <dir name="/">
@@ -57,6 +55,15 @@ http://pear.php.net/dtd/package-2.0.xsd">
   <configureoption default="autodetect" name="with-pinba" prompt="Please provide the prefix of Google Protocol Buffers installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <stability><release>beta</release><api>beta</api></stability>
+   <version><release>0.0.4</release><api>0.0.4</api></version>
+   <date>2009-08-26</date>
+   <notes>- Added HTTP response status to the response data.
+- Added support of Google Protocol Buffers 2.1.0+.
+- Added pinba_script_name_set() function.
+   </notes>
+  </release>
   <release>
    <stability><release>beta</release><api>beta</api></stability>
    <version><release>0.0.3</release><api>0.0.3</api></version>
