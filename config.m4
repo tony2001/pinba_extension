@@ -54,6 +54,7 @@ if test "$PHP_PINBA" != "no"; then
     old_LDFLAGS=$LDFLAGS
     LDFLAGS=-lpthread
     THREAD_LIB=""
+    
     AC_CHECK_FUNC(pthread_once,[
       THREAD_LIB=pthread
     ],[
@@ -69,7 +70,7 @@ if test "$PHP_PINBA" != "no"; then
         ])
       ])
     ])
-    PHP_ADD_LIBRARY([$THREAD_LIB])
+    LIBS="$LIBS -l$THREAD_LIB"
   fi
 
   if test "x$PHP_LIBDIR" = "x"; then
@@ -82,7 +83,7 @@ if test "$PHP_PINBA" != "no"; then
   PHP_SUBST(PINBA_SHARED_LIBADD)
   PHP_NEW_EXTENSION(pinba, pinba.cc pinba-pb.cc, $ext_shared,, -DNDEBUG)
 
-  AC_MSG_NOTICE([Regenerating protocol code])
+  AC_MSG_WARN([Regenerating protocol code])
   `$PROTOC -I$ext_srcdir $ext_srcdir/pinba.proto --cpp_out=$ext_srcdir`
 
   if test "$?" != 0; then
