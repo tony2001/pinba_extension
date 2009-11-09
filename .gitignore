@@ -26,5 +26,6 @@ Makefile
 .libs
 .deps
 *.lo
+*.o
 *.la
 pinba-pb.*
