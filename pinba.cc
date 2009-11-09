@@ -567,13 +567,8 @@ static int php_pinba_array_to_tags(zval *array, pinba_timer_tag_t ***tags TSRMLS
 			case IS_DOUBLE:
 				SEPARATE_ZVAL(value);
 				convert_to_string_ex(value);
-				if (Z_STRLEN_PP(value)) {
-					value_str = estrndup(Z_STRVAL_PP(value), Z_STRLEN_PP(value));
-					value_str_len = Z_STRLEN_PP(value);
-				} else {
-					value_str = NULL;
-					value_str_len = 0;
-				}
+				value_str = estrndup(Z_STRVAL_PP(value), Z_STRLEN_PP(value));
+				value_str_len = Z_STRLEN_PP(value);
 				break;
 			default:
 				php_error_docref(NULL TSRMLS_CC, E_WARNING, "tags cannot have non-scalar values");
