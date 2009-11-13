@@ -1117,6 +1117,28 @@ static PHP_FUNCTION(pinba_script_name_set)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_hostname_set(string custom_hostname)
+   Set custom hostname */
+static PHP_FUNCTION(pinba_hostname_set)
+{
+	char *hostname;
+	int hostname_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &hostname, &hostname_len) != SUCCESS) {
+		return;
+	}
+
+	if (hostname_len < sizeof(PINBA_G(host_name))) {
+		memcpy(PINBA_G(host_name), hostname, hostname_len);
+		PINBA_G(host_name)[hostname_len] = '\0';
+	} else {
+		memcpy(PINBA_G(host_name), hostname, sizeof(PINBA_G(host_name)) - 1);
+		PINBA_G(host_name)[sizeof(PINBA_G(host_name))] = '\0';
+	}
+	RETURN_TRUE;
+}
+/* }}} */
+
 /* {{{ pinba_functions[]
  */
 function_entry pinba_functions[] = {
@@ -1132,6 +1154,7 @@ function_entry pinba_functions[] = {
 	PHP_FE(pinba_timer_get_info, NULL)
 	PHP_FE(pinba_timers_stop, NULL)
 	PHP_FE(pinba_script_name_set, NULL)
+	PHP_FE(pinba_hostname_set, NULL)
 	{NULL, NULL, NULL}
 };
 /* }}} */
@@ -1178,10 +1201,6 @@ static void php_pinba_init_globals(zend_pinba_globals *globals)
 	memset(globals, 0, sizeof(*globals));
 
 	globals->timers_stopped = 0;
-
-	gethostname(globals->host_name, sizeof(globals->host_name) - 1);
-	globals->host_name[sizeof(globals->host_name) - 1] = '\0';
-
 	globals->server_name = NULL;
 	globals->script_name = NULL;
 }
@@ -1247,6 +1266,9 @@ static PHP_RINIT_FUNCTION(pinba)
 
 	PINBA_G(server_name) = NULL;
 	PINBA_G(script_name) = NULL;
+
+	gethostname(PINBA_G(host_name), sizeof(PINBA_G(host_name)));
+	PINBA_G(host_name)[sizeof(PINBA_G(host_name))] = '\0';
 
 #if PHP_MAJOR_VERSION >= 5
 	zend_is_auto_global("_SERVER", sizeof("_SERVER") - 1 TSRMLS_CC);

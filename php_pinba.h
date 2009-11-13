@@ -52,7 +52,7 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	char *server_host;
 	u_int16_t server_port;
 	int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
-	char host_name[32];
+	char host_name[128];
 	char *server_name;
 	char *script_name;
 	HashTable timers;
