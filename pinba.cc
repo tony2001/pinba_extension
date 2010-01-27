@@ -693,6 +693,7 @@ static PHP_FUNCTION(pinba_timer_start)
 		MAKE_STD_ZVAL(t->data);
 		*(t->data) = *data;
 		zval_copy_ctor(t->data);
+		INIT_PZVAL(t->data);
 	}
 
 	t->started = 1;
@@ -748,6 +749,7 @@ static PHP_FUNCTION(pinba_timer_add)
 		MAKE_STD_ZVAL(t->data);
 		*(t->data) = *data;
 		zval_copy_ctor(t->data);
+		INIT_PZVAL(t->data);
 	}
 
 	t->started = 0;
@@ -814,6 +816,7 @@ static PHP_FUNCTION(pinba_timer_data_merge)
 		MAKE_STD_ZVAL(t->data);
 		*(t->data) = *data;
 		zval_copy_ctor(t->data);
+		INIT_PZVAL(t->data);
 	} else {
 		zend_hash_merge(Z_ARRVAL_P(t->data), Z_ARRVAL_P(data), (void (*)(void *pData)) zval_add_ref, (void *) &tmp, sizeof(zval *), 1);
 	}
@@ -855,6 +858,7 @@ static PHP_FUNCTION(pinba_timer_data_replace)
 		MAKE_STD_ZVAL(t->data);
 		*(t->data) = *data;
 		zval_copy_ctor(t->data);
+		INIT_PZVAL(t->data);
 	}
 
 	RETURN_TRUE;
