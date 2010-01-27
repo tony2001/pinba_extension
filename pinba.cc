@@ -227,9 +227,7 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 
 static int php_pinba_timer_stop_helper(zend_rsrc_list_entry *le, void *le_type TSRMLS_DC) /* {{{ */
 {
-	int type = (int)(long)le_type;
-
-	if (le->type == type) {
+	if (le->type == le_pinba_timer) {
 		/* remove not looking at the refcount */
 		return ZEND_HASH_APPLY_REMOVE;
 	}
