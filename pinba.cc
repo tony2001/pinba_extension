@@ -156,10 +156,13 @@ static void php_pinba_timer_dtor(pinba_timer_t *t) /* {{{ */
 
 static void php_timer_hash_dtor(void *data) /* {{{ */
 {
-	pinba_timer_t *t = (pinba_timer_t *)data;
+	pinba_timer_t *t = *(pinba_timer_t **)data;
 
-	php_pinba_timer_dtor(t);
-	/* efree is done by zend_hash_destroy() */
+	if (t) {
+		php_pinba_timer_dtor(t);
+		efree(t);
+		*(pinba_timer_t **)data = NULL;
+	}
 }
 /* }}} */
 
@@ -212,7 +215,6 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 	pinba_timer_t *t = (pinba_timer_t *)entry->ptr;
 
 	php_pinba_timer_stop(t);
-	zend_hash_next_index_insert(&PINBA_G(timers), t, sizeof(pinba_timer_t), NULL);
 	/* php_pinba_timer_dtor(t); all timers are destroyed at once */
 
 	/* but we don't need the user data anymore */
@@ -220,8 +222,10 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 		zval_ptr_dtor(&t->data);
 		t->data = NULL;
 	}
-	/* the value is copied to the hash, so we can free our pointer now */
-	efree(t);
+
+	if (zend_hash_index_exists(&PINBA_G(timers), t->rsrc_id) == 0) {
+		zend_hash_index_update(&PINBA_G(timers), t->rsrc_id, &t, sizeof(pinba_timer_t *), NULL);
+	}
 }
 /* }}} */
 
@@ -242,7 +246,7 @@ static int sapi_ub_write_counter(const char *str, unsigned int length TSRMLS_DC)
 }
 /* }}} */
 
-static inline int php_pinba_req_data_send(pinba_req_data record, HashTable timers TSRMLS_DC) /* {{{ */
+static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *timers TSRMLS_DC) /* {{{ */
 {
 	int ret = SUCCESS, timers_num, dict_cnt = 0;
 	HashTable dict;
@@ -258,9 +262,9 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable timer
 		return FAILURE;
 	}
 
-	timers_num = zend_hash_num_elements(&timers);
+	timers_num = zend_hash_num_elements(timers);
 	if (timers_num > 0) {
-		pinba_timer_t *t, *old_t;
+		pinba_timer_t *t, *old_t, **t_el, **old_t_el;
 		char *hashed_tags;
 		int hashed_tags_len;
 
@@ -268,27 +272,29 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable timer
 		zend_hash_init(&timers_uniq, 10, NULL, NULL, 0);
 		zend_hash_init(&dict, 10, NULL, NULL, 0);
 
-		for (zend_hash_internal_pointer_reset_ex(&timers, &pos);
-				zend_hash_get_current_data_ex(&timers, (void **) &t, &pos) == SUCCESS;
-				zend_hash_move_forward_ex(&timers, &pos)) {
+		for (zend_hash_internal_pointer_reset_ex(timers, &pos);
+				zend_hash_get_current_data_ex(timers, (void **) &t_el, &pos) == SUCCESS;
+				zend_hash_move_forward_ex(timers, &pos)) {
+			t = *t_el;
 			if (php_pinba_tags_to_hashed_string(t, &hashed_tags, &hashed_tags_len TSRMLS_CC) != SUCCESS) {
 				continue;
 			}
 
-			if (zend_hash_find(&timers_uniq, hashed_tags, hashed_tags_len + 1, (void **)&old_t) == SUCCESS) {
+			if (zend_hash_find(&timers_uniq, hashed_tags, hashed_tags_len + 1, (void **)&old_t_el) == SUCCESS) {
+				old_t = *old_t_el;
 				timeradd(&old_t->value, &t->value, &old_t->value);
 				old_t->hit_count++;
 			} else {
-				zend_hash_add(&timers_uniq, hashed_tags, hashed_tags_len + 1, t, sizeof(pinba_timer_t), NULL);
+				zend_hash_add(&timers_uniq, hashed_tags, hashed_tags_len + 1, t_el, sizeof(pinba_timer_t *), NULL);
 			}
 			efree(hashed_tags);
 		}
 
 		/* create our temporary dictionary and add ids to timers */
 		for (zend_hash_internal_pointer_reset_ex(&timers_uniq, &pos);
-				zend_hash_get_current_data_ex(&timers_uniq, (void **) &t, &pos) == SUCCESS;
+				zend_hash_get_current_data_ex(&timers_uniq, (void **) &t_el, &pos) == SUCCESS;
 				zend_hash_move_forward_ex(&timers_uniq, &pos)) {
-
+			t = *t_el;
 			for (i = 0; i < t->tags_num; i++) {
 				int *id;
 
@@ -336,7 +342,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable timer
 
 	/* timers */
 	if (timers_num > 0) {
-		pinba_timer_t *t;
+		pinba_timer_t *t, **t_el;
 		int *id;
 
 		for (zend_hash_internal_pointer_reset_ex(&dict, &pos);
@@ -355,8 +361,10 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable timer
 		zend_hash_destroy(&dict);
 
 		for (zend_hash_internal_pointer_reset_ex(&timers_uniq, &pos);
-				zend_hash_get_current_data_ex(&timers_uniq, (void **) &t, &pos) == SUCCESS;
+				zend_hash_get_current_data_ex(&timers_uniq, (void **) &t_el, &pos) == SUCCESS;
 				zend_hash_move_forward_ex(&timers_uniq, &pos)) {
+			
+			t = *t_el;
 
 			for (i = 0; i < t->tags_num; i++) {
 				request->add_timer_tag_name(t->tags[i]->name_id);
@@ -473,7 +481,7 @@ static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{
 		req_data.script_name = estrdup("unknown");
 	}
 
-	php_pinba_req_data_send(req_data, PINBA_G(timers) TSRMLS_CC);
+	php_pinba_req_data_send(req_data, &PINBA_G(timers) TSRMLS_CC);
 	php_pinba_req_data_dtor(&req_data);
 
 	PINBA_G(timers_stopped) = 0;
