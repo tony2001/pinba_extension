@@ -183,7 +183,7 @@ static int php_pinba_tags_to_hashed_string(pinba_timer_t *timer, char **hashed_t
 	for (i = 0; i < timer->tags_num; i++) {
 		if (buf_len <= (wrote_len + timer->tags[i]->name_len + 2 + timer->tags[i]->value_len + 1)) {
 			buf_len = wrote_len + timer->tags[i]->name_len + 2 + timer->tags[i]->value_len + 1 + 4096;
-			buf = (char *)realloc(buf, buf_len + 1);
+			buf = (char *)erealloc(buf, buf_len + 1);
 		}
 		memcpy(buf + wrote_len, timer->tags[i]->name, timer->tags[i]->name_len);
 		wrote_len += timer->tags[i]->name_len;
