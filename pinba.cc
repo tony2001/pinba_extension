@@ -377,7 +377,8 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 	}
 
 	if (ret == SUCCESS) {
-		ssize_t total_sent = 0, sent;
+		size_t total_sent = 0;
+		ssize_t sent;
 		string data;
 		bool res;
 
