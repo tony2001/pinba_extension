@@ -253,9 +253,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 	HashTable timers_uniq;
 	HashPosition pos;
 	Pinba::Request *request;
-	unsigned char *buf;
-	int buf_len;
-	int i, j, ti, tt;
+	int i;
 
 	/* no socket -> bail out */
 	if (pinba_socket < 0) {
@@ -669,7 +667,6 @@ static PHP_FUNCTION(pinba_timer_start)
 	zval *tags_array, *data = NULL;
 	pinba_timer_t *t = NULL;
 	pinba_timer_tag_t **tags;
-	struct timeval now;
 	int tags_num;
 	struct rusage u;
 
@@ -724,7 +721,6 @@ static PHP_FUNCTION(pinba_timer_add)
 	zval *tags_array, *data = NULL;
 	pinba_timer_t *t = NULL;
 	pinba_timer_tag_t **tags;
-	struct timeval now;
 	int tags_num;
 	double value;
 	unsigned long time_l;
