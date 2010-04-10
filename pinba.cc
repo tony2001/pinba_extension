@@ -13,6 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Authors: Antony Dovgal <tony@daylessday.org>                         |
+  |          Florian Forster <ff at octo.it>  (IPv6 support)             |
   +----------------------------------------------------------------------+
 
   $Id: pinba.cc,v 1.1.2.9 2009/04/28 10:46:55 tony Exp $ 
@@ -31,6 +32,7 @@ extern "C" {
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <string.h>
 
 #include "php.h"
@@ -246,6 +248,59 @@ static int sapi_ub_write_counter(const char *str, unsigned int length TSRMLS_DC)
 }
 /* }}} */
 
+static int php_pinba_init_socket (void) /* {{{ */
+{
+	struct addrinfo *ai_list;
+	struct addrinfo *ai_ptr;
+	struct addrinfo  ai_hints;
+	int fd;
+	int status;
+
+	if ((PINBA_G(server_host) == NULL)
+			|| (PINBA_G(server_port) == NULL))
+		return (-1);
+
+	memset (&ai_hints, 0, sizeof (ai_hints));
+	ai_hints.ai_flags     = 0;
+#ifdef AI_ADDRCONFIG
+	ai_hints.ai_flags    |= AI_ADDRCONFIG;
+#endif
+	ai_hints.ai_family    = AF_UNSPEC;
+	ai_hints.ai_socktype  = SOCK_DGRAM;
+	ai_hints.ai_addr      = NULL;
+	ai_hints.ai_canonname = NULL;
+	ai_hints.ai_next      = NULL;
+
+	ai_list = NULL;
+	status = getaddrinfo (PINBA_G(server_host), PINBA_G(server_port),
+			&ai_hints, &ai_list);
+	if (status != 0)
+		/* TODO: error reporting */
+		return (-1);
+	assert (ai_list != NULL);
+
+	fd = -1;
+	for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
+		fd = socket (ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
+		if (fd < 0)
+			continue;
+
+		if (pinba_socket >= 0)
+			close (pinba_socket);
+		pinba_socket = fd;
+
+		assert (sizeof (PINBA_G(collector_sockaddr)) >= ai_ptr->ai_addrlen);
+		memcpy (&PINBA_G(collector_sockaddr), ai_ptr->ai_addr, ai_ptr->ai_addrlen);
+		PINBA_G(collector_sockaddr_len) = ai_ptr->ai_addrlen;
+
+		break;
+	}
+
+	freeaddrinfo (ai_list);
+
+	return ((fd >= 0) ? 0 : -1);
+} /* }}} int php_pinba_init_socket */
+
 static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *timers TSRMLS_DC) /* {{{ */
 {
 	int ret = SUCCESS, timers_num, dict_cnt = 0;
@@ -388,7 +443,8 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 		while (total_sent < data.size()) {
 			int flags = 0;
 
-			sent = sendto(pinba_socket, data.c_str() + total_sent, data.size() - total_sent, flags, (struct sockaddr *) &PINBA_G(collector_sockaddr_in), sizeof(PINBA_G(collector_sockaddr_in)));
+			sent = sendto(pinba_socket, data.c_str() + total_sent, data.size() - total_sent, flags,
+					(struct sockaddr *) &PINBA_G(collector_sockaddr), PINBA_G(collector_sockaddr_len));
 			if (sent < 0) {
 				ret = FAILURE;
 				break;
@@ -424,6 +480,7 @@ static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{
 	struct timeval req_finish;
 	struct rusage u;
 	pinba_req_data req_data;
+	int status;
 
 #if PHP_MAJOR_VERSION >= 5 
 	PINBA_G(tmp_req_data).mem_peak_usage = zend_memory_peak_usage(1 TSRMLS_CC);
@@ -443,6 +500,10 @@ static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{
 		zend_hash_clean(&PINBA_G(timers));
 		return;
 	}
+
+	status = php_pinba_init_socket ();
+	if (status != 0)
+		return;
 
 	/* compute how many time the request took */
 	if (gettimeofday(&req_finish, 0) == 0) {
@@ -1171,27 +1232,78 @@ function_entry pinba_functions[] = {
 
 static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 {
-	if (new_value && *new_value) {
-		char *p = strchr(new_value, ':');
-		if (PINBA_G(server_host)) {
-			free(PINBA_G(server_host));
+	char *copy;
+	char *new_node;
+	char *new_service;
+
+	if ((new_value == NULL) || (new_value[0] == 0))
+		return FAILURE;
+
+	copy = strdup (new_value);
+	if (copy == NULL)
+		return FAILURE;
+
+	new_node = NULL;
+	new_service = NULL;
+
+	/* '[' <node> ']' [':' <service>] */
+	if (copy[0] == '[') {
+		char *endptr;
+
+		new_node = copy + 1;
+
+		endptr = strchr (new_node, ']');
+		if (endptr == NULL) {
+			free (copy);
+			return FAILURE;
 		}
-		if (p) {
-			PINBA_G(server_host) = strdup(new_value);
-			PINBA_G(server_host)[p - new_value] = '\0';
-			PINBA_G(server_port) = atoi(p + 1);
-		} else {
-			PINBA_G(server_host) = strdup(new_value);
-			PINBA_G(server_port) = PINBA_COLLECTOR_DEFAULT_PORT;
+		*endptr = 0;
+		endptr++;
+
+		if ((*endptr != ':') && (*endptr != 0)) {
+			free (copy);
+			return FAILURE;
 		}
+
+		if (*endptr != 0)
+			new_service = endptr + 1;
+
+		if ((new_service != NULL) && (*new_service == 0))
+			new_service = NULL;
 	}
-	
+	/* <ipv4 node> [':' <service>] */
+	else if ((strchr (copy, ':') == NULL) /* no colon */
+			|| (strchr (copy, ':') == strrchr (copy, ':'))) { /* exactly one colon */
+		char *endptr = strchr (copy, ':');
+
+		if (endptr != NULL) {
+			*endptr = 0;
+			new_service = endptr + 1;
+		}
+		new_node = copy;
+	}
+	/* <ipv6 node> */
+	else { /* multiple colons */
+		new_node = copy;
+	}
+
+	assert (new_node != NULL);
+
 	if (PINBA_G(server_host)) {
-		memset(&PINBA_G(collector_sockaddr_in), 0, sizeof(struct sockaddr_in));
-		PINBA_G(collector_sockaddr_in).sin_family = AF_INET;
-		inet_aton(PINBA_G(server_host), &PINBA_G(collector_sockaddr_in).sin_addr);
-		PINBA_G(collector_sockaddr_in).sin_port = htons(PINBA_G(server_port));
+		free (PINBA_G(server_host));
 	}
+	if (PINBA_G(server_port)) {
+		free (PINBA_G(server_port));
+	}
+
+	PINBA_G(server_host) = strdup(new_node);
+	if (new_service == NULL)
+		PINBA_G(server_port) = strdup (PINBA_COLLECTOR_DEFAULT_PORT);
+	else
+		PINBA_G(server_port) = strdup (new_service);
+	free (copy);
+
+	/* Sets "collector_address", I assume */
 	return OnUpdateString(entry, new_value, new_value_length, mh_arg1, mh_arg2, mh_arg3, stage TSRMLS_CC);
 }
 /* }}} */
@@ -1222,8 +1334,6 @@ static PHP_MINIT_FUNCTION(pinba)
 {
 	ZEND_INIT_MODULE_GLOBALS(pinba, php_pinba_init_globals, NULL);
 	REGISTER_INI_ENTRIES();
-
-	pinba_socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 	le_pinba_timer = zend_register_list_destructors_ex(php_timer_resource_dtor, NULL, "pinba timer", module_number);
 	return SUCCESS;

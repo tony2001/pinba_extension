@@ -30,7 +30,7 @@ extern zend_module_entry pinba_module_entry;
 #include "TSRM.h"
 #endif
 
-#define PINBA_COLLECTOR_DEFAULT_PORT 30002
+#define PINBA_COLLECTOR_DEFAULT_PORT "30002"
 #define PHP_PINBA_VERSION "0.0.6-dev"
 
 typedef struct _pinba_req_data { /* {{{ */
@@ -47,10 +47,11 @@ typedef struct _pinba_req_data { /* {{{ */
 /* }}} */
 
 ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
-	struct sockaddr_in collector_sockaddr_in;
+	struct sockaddr_storage collector_sockaddr;
+	size_t collector_sockaddr_len;
 	char *collector_address;
 	char *server_host;
-	u_int16_t server_port;
+	char *server_port;
 	int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
 	char host_name[128];
 	char *server_name;
