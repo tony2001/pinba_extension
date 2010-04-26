@@ -1237,7 +1237,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		return FAILURE;
 	}
 
-	copy = strdup (new_value);
+	copy = strdup(new_value);
 	if (copy == NULL) {
 		return FAILURE;
 	}
@@ -1251,7 +1251,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 
 		new_node = copy + 1;
 
-		endptr = strchr (new_node, ']');
+		endptr = strchr(new_node, ']');
 		if (endptr == NULL) {
 			free(copy);
 			return FAILURE;
@@ -1273,9 +1273,9 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		}
 	}
 	/* <ipv4 node> [':' <service>] */
-	else if ((strchr (copy, ':') == NULL) /* no colon */
-			|| (strchr (copy, ':') == strrchr (copy, ':'))) { /* exactly one colon */
-		char *endptr = strchr (copy, ':');
+	else if ((strchr(copy, ':') == NULL) /* no colon */
+			|| (strchr(copy, ':') == strrchr(copy, ':'))) { /* exactly one colon */
+		char *endptr = strchr(copy, ':');
 
 		if (endptr != NULL) {
 			*endptr = 0;
@@ -1297,9 +1297,9 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 
 	PINBA_G(server_host) = strdup(new_node);
 	if (new_service == NULL) {
-		PINBA_G(server_port) = strdup (PINBA_COLLECTOR_DEFAULT_PORT);
+		PINBA_G(server_port) = strdup(PINBA_COLLECTOR_DEFAULT_PORT);
 	} else {
-		PINBA_G(server_port) = strdup (new_service);
+		PINBA_G(server_port) = strdup(new_service);
 	}
 	free(copy);
 
