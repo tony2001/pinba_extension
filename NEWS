@@ -2,6 +2,7 @@ Pinba 0.0.6      ?? ??? 2009
 ----------------------------
 - Fixed extension crash on empty tag value.
 - Added pinba_hostname_set() function.
+- Added experimental IPv6 support. (Florian Forster)
 
 Pinba 0.0.5      19 Oct 2009
 ----------------------------
