@@ -51,18 +51,18 @@ if test "$PHP_PINBA" != "no"; then
 
   dnl Google Protobuf >= 2.1.0 uses pthread_once() in its headers
   if test "$GPB_VERSION" -ge "2001000"; then
-    old_LDFLAGS=$LDFLAGS
-    LDFLAGS=-lpthread
+    old_LIBS=$LIBS
+    LIBS=-lpthread
     THREAD_LIB=""
     
     AC_CHECK_FUNC(pthread_once,[
       THREAD_LIB=pthread
     ],[
-      LDFLAGS=-lc_r
+      LIBS=-lc_r
       AC_CHECK_FUNC(pthread_once, [
         THREAD_LIB=c_r
       ],[
-        LDFLAGS=-lc
+        LIBS=-lc
         AC_CHECK_FUNC(pthread_once, [
           THREAD_LIB=c
         ],[
@@ -70,7 +70,7 @@ if test "$PHP_PINBA" != "no"; then
         ])
       ])
     ])
-    LIBS="$LIBS -l$THREAD_LIB"
+    LIBS="$old_LIBS -l$THREAD_LIB"
   fi
 
   if test "x$PHP_LIBDIR" = "x"; then
