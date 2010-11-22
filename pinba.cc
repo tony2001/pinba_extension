@@ -94,6 +94,7 @@ typedef struct _pinba_timer { /* {{{ */
 	struct timeval tmp_ru_stime;
 	struct timeval ru_utime;
 	struct timeval ru_stime;
+	int deleted:1;
 } pinba_timer_t;
 /* }}} */
 
@@ -225,8 +226,10 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 		t->data = NULL;
 	}
 
-	if (zend_hash_index_exists(&PINBA_G(timers), t->rsrc_id) == 0) {
-		zend_hash_index_update(&PINBA_G(timers), t->rsrc_id, &t, sizeof(pinba_timer_t *), NULL);
+	if (!t->deleted) {
+		if (zend_hash_index_exists(&PINBA_G(timers), t->rsrc_id) == 0) {
+			zend_hash_index_update(&PINBA_G(timers), t->rsrc_id, &t, sizeof(pinba_timer_t *), NULL);
+		}
 	}
 }
 /* }}} */
@@ -496,11 +499,13 @@ static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{
 	if (!PINBA_G(enabled) || !PINBA_G(server_host) || !PINBA_G(server_port)) {
 		/* no server host/port set, exit */
 		zend_hash_clean(&PINBA_G(timers));
+		PINBA_G(timers_stopped) = 0;
 		return;
 	}
 
 	status = php_pinba_init_socket();
 	if (status != 0) {
+		PINBA_G(timers_stopped) = 0;
 		return;
 	}
 
@@ -858,6 +863,29 @@ static PHP_FUNCTION(pinba_timer_stop)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_timer_delete(resource timer)
+   Delete user timer */
+static PHP_FUNCTION(pinba_timer_delete)
+{
+	zval *timer;
+	pinba_timer_t *t;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &timer) != SUCCESS) {
+		return;
+	}
+	
+	PHP_ZVAL_TO_TIMER(timer, t);
+
+	if (t->started) {
+		php_pinba_timer_stop(t);
+	}
+
+	t->deleted = 1;
+	zend_list_delete(t->rsrc_id);
+	RETURN_TRUE;
+}
+/* }}} */
+
 /* {{{ proto bool pinba_timer_data_merge(resource timer, array data)
    Merge timer data with new data */
 static PHP_FUNCTION(pinba_timer_data_merge)
@@ -1115,6 +1143,10 @@ static PHP_FUNCTION(pinba_get_info)
 		if (le->type == le_pinba_timer) {
 			t = (pinba_timer_t *)le->ptr;
 
+			if (t->deleted) {
+				continue;
+			}
+
 			MAKE_STD_ZVAL(timer_info);
 			php_pinba_get_timer_info(t, timer_info TSRMLS_CC);
 			add_next_index_zval(timers, timer_info);
@@ -1213,6 +1245,7 @@ function_entry pinba_functions[] = {
 	PHP_FE(pinba_timer_start, NULL)
 	PHP_FE(pinba_timer_add, NULL)
 	PHP_FE(pinba_timer_stop, NULL)
+	PHP_FE(pinba_timer_delete, NULL)
 	PHP_FE(pinba_timer_data_merge, NULL)
 	PHP_FE(pinba_timer_data_replace, NULL)
 	PHP_FE(pinba_timer_tags_merge, NULL)
