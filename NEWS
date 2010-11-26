@@ -1,9 +1,9 @@
-Pinba 0.0.6      ?? ??? 2009
+Pinba 0.0.6      26 Nov 2010
 ----------------------------
-- Added pinba_timer_delete().
-- Fixed extension crash on empty tag value.
+- Added pinba_timer_delete() function.
 - Added pinba_hostname_set() function.
 - Added experimental IPv6 support. (Florian Forster)
+- Fixed extension crash on empty tag value.
 
 Pinba 0.0.5      19 Oct 2009
 ----------------------------
