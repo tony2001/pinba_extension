@@ -57,6 +57,8 @@ ZEND_GET_MODULE(pinba)
 static int le_pinba_timer;
 static int pinba_socket = -1;
 
+static zend_bool pinba_execute_initialized = 0;
+
 #if ZEND_MODULE_API_NO > 20020429
 #define ONUPDATELONGFUNC OnUpdateLong
 #else
@@ -105,6 +107,11 @@ typedef struct _pinba_timer { /* {{{ */
 
 #define timeval_cvt(a, b) do { (a)->tv_sec = (b)->tv_sec; (a)->tv_usec = (b)->tv_usec; } while (0);
 #define timeval_to_float(t) (float)(t).tv_sec + (float)(t).tv_usec / 1000000.0
+
+void (*pinba_old_execute)(zend_op_array *op_array TSRMLS_DC);
+void pinba_execute(zend_op_array *op_array TSRMLS_DC);
+void (*pinba_old_execute_internal)(zend_execute_data *current_execute_data, int return_value_used TSRMLS_DC);
+void pinba_execute_internal(zend_execute_data *current_execute_data, int return_value_used TSRMLS_DC);
 
 /* {{{ internal funcs */
 
@@ -825,6 +832,298 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info TSRMLS_DC) /* 
 }
 /* }}} */
 
+static void php_pinba_parse_ignore_funcs(TSRMLS_D) /* {{{ */
+{
+	char *tmp, *for_free, *start = NULL;
+	int dummy = 1, start_len;
+
+	if (!PINBA_G(ignore_functions) || PINBA_G(ignore_functions)[0] == '\0') {
+		return;
+	}
+
+	tmp = estrdup(PINBA_G(ignore_functions));
+	for_free = tmp;
+	while(*tmp) {
+		switch (*tmp) {
+			case ' ':
+			case ',':
+				if (start) {
+					*tmp = '\0';
+					start_len = strlen(start);
+
+					if (start_len) {
+						zend_str_tolower(start, start_len);
+						zend_hash_add(&PINBA_G(ignore_funcs_hash), start, start_len + 1, (void *)&dummy, sizeof(int),     NULL);
+					}
+					start = NULL;
+				}
+				break;
+			default:
+				if (!start) {
+					start = tmp;
+				}
+				break;
+		}
+		tmp++;
+	}
+	if (start) {
+		start_len = strlen(start);
+
+		if (start_len) {
+			zend_str_tolower(start, start_len);
+			zend_hash_add(&PINBA_G(ignore_funcs_hash), start, start_len + 1, (void *)&dummy, sizeof(int), NULL);
+		}
+	}
+	efree(for_free);
+}
+/* }}} */
+
+static void php_pinba_ignore_pinba_funcs(TSRMLS_D) /* {{{ */
+{
+	int dummy;
+	const zend_function_entry *func;
+	zend_module_entry *module = NULL;
+
+	if (zend_hash_find(&module_registry, "pinba", sizeof("pinba"), (void**)&module) == FAILURE || !module || !module->functions) {
+		return;
+	}
+
+	func = module->functions; 
+
+	while (func->fname) {
+		zend_hash_add(&PINBA_G(ignore_funcs_hash), func->fname, strlen(func->fname) + 1,  (void *)&dummy, sizeof(int), NULL);
+		func++;
+	}
+	
+	zend_hash_add(&PINBA_G(ignore_funcs_hash), "main", sizeof("main"),  (void *)&dummy, sizeof(int), NULL);
+}
+/* }}} */
+
+static char *mt_get_function_name(zend_op_array *op_array TSRMLS_DC) /* {{{ */
+{
+	char *current_fname = NULL;
+	char *class_name, *fname;
+	zend_bool free_fname = 0;
+	int class_name_len, fname_len;
+	zend_execute_data *exec_data = EG(current_execute_data);
+	zend_class_entry *ce;
+
+#if PHP_MAJOR_VERSION > 4
+	char *space;
+
+	if (op_array) {
+		ce = ((zend_function *)op_array)->common.scope;
+		class_name = ce ? (char *)ce->name : (char *)"";
+	} else {
+		class_name = get_active_class_name(&space TSRMLS_CC);
+	}
+
+	if (space[0] == '\0') {
+		if (op_array) {
+			current_fname = op_array->function_name;
+		} else {
+			current_fname = get_active_function_name(TSRMLS_C);
+		}
+
+	} else {
+		if (op_array) {
+			fname = op_array->function_name;
+		} else {
+			fname = get_active_function_name(TSRMLS_C);
+		}
+
+		if (fname) {
+			class_name_len = strlen(class_name);
+			fname_len = strlen(fname);
+			if (class_name_len) {
+				current_fname = (char *)emalloc(class_name_len + 2 + fname_len + 1);
+				free_fname = 1;
+
+				memcpy(current_fname, class_name, class_name_len);
+				memcpy(current_fname + class_name_len, "::", 2);
+				memcpy(current_fname + class_name_len + 2, fname, fname_len);
+				current_fname[class_name_len + 2 + fname_len] = '\0';
+			} else {
+				current_fname = fname;
+			}
+		}
+	}
+#else
+	class_name = "";
+
+	if (exec_data && exec_data->ce) {
+		class_name = exec_data->ce->name;
+	} else if (exec_data && exec_data->object.ptr && Z_OBJCE_P(exec_data->object.ptr)) {
+		class_name = Z_OBJCE_P(exec_data->object.ptr)->name;
+	}
+
+	if (class_name[0] == '\0') {
+		current_fname = get_active_function_name(TSRMLS_C);
+	} else {
+		fname = get_active_function_name(TSRMLS_C);
+		if (fname) {
+			class_name_len = strlen(class_name);
+			fname_len = strlen(fname);
+
+			current_fname = emalloc(class_name_len + 2 + fname_len + 1);
+			free_fname = 1;
+
+			memcpy(current_fname, class_name, class_name_len);
+			memcpy(current_fname + class_name_len, "::", 2);
+			memcpy(current_fname + class_name_len + 2, fname, fname_len);
+			current_fname[class_name_len + 2 + fname_len] = '\0';
+		}
+	}
+#endif
+
+	if (!current_fname) {
+		current_fname = "main";
+	}
+
+	if (!free_fname && !strcmp("main", current_fname)) {
+
+		if (exec_data && exec_data->opline && exec_data->opline->op2.op_type == IS_UNUSED) {
+			switch (Z_LVAL(exec_data->opline->op2.u.constant)) {
+				case ZEND_REQUIRE_ONCE:
+					current_fname = "require_once";
+					break;
+				case ZEND_INCLUDE:
+					current_fname = "include";
+					break;
+				case ZEND_REQUIRE:
+					current_fname = "require";
+					break;
+				case ZEND_INCLUDE_ONCE:
+					current_fname = "include_once";
+					break;
+				case ZEND_EVAL:
+					current_fname = "eval";
+					break;
+			}
+		}
+	}
+
+	if (!free_fname) {
+		return estrdup(current_fname);
+	} else {
+		return current_fname;
+	}
+}
+/* }}} */
+
+static int pinba_start_autotimer(zend_op_array *op_array TSRMLS_DC) /* {{{ */
+{
+	char *function_name, *lc_function_name;
+	int function_name_len;
+	pinba_timer_tag_t **tags;
+	pinba_timer_t *t;
+	struct rusage u;
+
+	if (PINBA_G(timers_stopped)) {
+		return -1;
+	}
+
+	function_name = mt_get_function_name(op_array TSRMLS_CC);
+	function_name_len = strlen(function_name);
+	lc_function_name = estrndup(function_name, function_name_len);
+	zend_str_tolower(lc_function_name, function_name_len);
+
+	if (zend_hash_exists(&PINBA_G(ignore_funcs_hash), lc_function_name, function_name_len + 1) != 0) {
+		/* ignored function */
+		efree(function_name);
+		efree(lc_function_name);
+		return -1;
+	}
+	efree(function_name);
+
+	tags = (pinba_timer_tag_t **)ecalloc(1, sizeof(pinba_timer_tag_t *));
+	tags[0] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
+	tags[0]->name = estrndup("function", sizeof("function") - 1);
+	tags[0]->name_len = sizeof("function") - 1;
+	tags[0]->value = lc_function_name;
+	tags[0]->value_len = function_name_len;
+
+	t = php_pinba_timer_ctor(tags, 1 TSRMLS_CC);
+
+	t->started = 1;
+	t->hit_count = 1;
+
+	t->rsrc_id = zend_list_insert(t, le_pinba_timer);
+
+	if (getrusage(RUSAGE_SELF, &u) == 0) {
+		timeval_cvt(&t->tmp_ru_utime, &u.ru_utime);
+		timeval_cvt(&t->tmp_ru_stime, &u.ru_stime);
+	}
+	/* refcount++ so that the timer is shut down only on request finish if not stopped manually */
+	zend_list_addref(t->rsrc_id);
+
+	return t->rsrc_id;
+}
+/* }}} */
+
+static void pinba_stop_autotimer(int rsrc_id) /* {{{ */
+{
+	void *resource;
+	int actual_resource_type;
+	pinba_timer_t *t;
+
+	if (rsrc_id < 0) {
+		return;
+	}
+
+	resource = zend_list_find(rsrc_id, &actual_resource_type);
+	if (!resource) {
+		return;
+	}
+
+	if (actual_resource_type != le_pinba_timer) {
+		return;
+	}
+
+	t = (pinba_timer_t *)resource;
+
+	if (!t->started) {
+		return;
+	}
+
+	php_pinba_timer_stop(t);
+}
+/* }}} */
+
+void pinba_execute(zend_op_array *op_array TSRMLS_DC) /* {{{ */
+{
+	if (!PINBA_G(autotimers_user)) {
+		pinba_old_execute(op_array TSRMLS_CC);
+	} else {
+		int rsrc_id;
+		rsrc_id = pinba_start_autotimer(op_array TSRMLS_CC);
+		pinba_old_execute(op_array TSRMLS_CC);
+		pinba_stop_autotimer(rsrc_id TSRMLS_CC);
+	}
+}
+/* }}} */
+
+void pinba_execute_internal(zend_execute_data *current_execute_data, int return_value_used TSRMLS_DC) /* {{{ */
+{
+	if (!PINBA_G(autotimers_internal)) {
+		if (pinba_old_execute_internal) {
+			pinba_old_execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+		} else {
+			execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+		}
+	} else {
+		int rsrc_id;
+		rsrc_id = pinba_start_autotimer(NULL TSRMLS_CC);
+		if (pinba_old_execute_internal) {
+			pinba_old_execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+		} else {
+			execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+		}
+		pinba_stop_autotimer(rsrc_id TSRMLS_CC);
+	}
+}
+/* }}} */
+
 /* }}} */
 
 /* {{{ proto resource pinba_timer_start(array tags[, array data])
@@ -1492,6 +1791,9 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("pinba.server", NULL, PHP_INI_SYSTEM|PHP_INI_PERDIR, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
+	STD_PHP_INI_ENTRY("pinba.autotimers_user", "0", PHP_INI_SYSTEM, OnUpdateBool, autotimers_user, zend_pinba_globals, pinba_globals)
+	STD_PHP_INI_ENTRY("pinba.autotimers_internal", "0", PHP_INI_SYSTEM, OnUpdateBool, autotimers_internal, zend_pinba_globals, pinba_globals)
+	STD_PHP_INI_ENTRY("pinba.ignore_functions", "", PHP_INI_SYSTEM, OnUpdateString, ignore_functions, zend_pinba_globals, pinba_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -1538,6 +1840,11 @@ static PHP_MSHUTDOWN_FUNCTION(pinba)
 	}
 	if (PINBA_G(server_port)) {
 		free(PINBA_G(server_port));
+	}
+
+	if (pinba_execute_initialized) {
+		zend_execute = pinba_old_execute;
+		zend_execute_internal = pinba_old_execute_internal;
 	}
 	return SUCCESS;
 }
@@ -1599,6 +1906,19 @@ static PHP_RINIT_FUNCTION(pinba)
 	sapi_module.ub_write = sapi_ub_write_counter;
 #endif
 
+	zend_hash_init(&PINBA_G(ignore_funcs_hash), 16, NULL, NULL, 0);
+	php_pinba_parse_ignore_funcs(TSRMLS_C);
+	php_pinba_ignore_pinba_funcs(TSRMLS_C);
+
+	if ((PINBA_G(autotimers_user) || PINBA_G(autotimers_internal)) && !pinba_execute_initialized) {
+		pinba_old_execute = zend_execute;
+		zend_execute = pinba_execute;
+
+		pinba_old_execute_internal = zend_execute_internal;
+		zend_execute_internal = pinba_execute_internal;
+		pinba_execute_initialized = 1;
+	}
+
 	return SUCCESS;
 }
 /* }}} */
@@ -1625,7 +1945,9 @@ static PHP_RSHUTDOWN_FUNCTION(pinba)
 		efree(PINBA_G(script_name));
 		PINBA_G(script_name) = NULL;
 	}
+	
 	PINBA_G(in_rshutdown) = 1;
+	zend_hash_destroy(&PINBA_G(ignore_funcs_hash));
 	return SUCCESS;
 }
 /* }}} */

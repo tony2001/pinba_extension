@@ -62,6 +62,10 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	zend_bool timers_stopped;
 	zend_bool in_rshutdown;
 	zend_bool enabled;
+	zend_bool autotimers_user;
+	zend_bool autotimers_internal;
+	char *ignore_functions;
+	HashTable ignore_funcs_hash;
 ZEND_END_MODULE_GLOBALS(pinba)
 /* }}} */
 
