@@ -909,7 +909,7 @@ static char *mt_get_function_name(zend_op_array *op_array TSRMLS_DC) /* {{{ */
 	zend_class_entry *ce;
 
 #if PHP_MAJOR_VERSION > 4
-	char *space;
+	char *space = "";
 
 	if (op_array) {
 		ce = ((zend_function *)op_array)->common.scope;
