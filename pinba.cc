@@ -65,6 +65,8 @@ static int pinba_socket = -1;
 #define ONUPDATELONGFUNC OnUpdateInt
 #endif
 
+#define PINBA_FLUSH_ONLY_STOPPED_TIMERS (1<<0)
+
 typedef struct _pinba_timer_tag { /* {{{ */
 	char *name;
 	int name_len;
@@ -304,7 +306,7 @@ static int php_pinba_init_socket (void) /* {{{ */
 	return ((fd >= 0) ? 0 : -1);
 } /* }}} */
 
-static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *timers TSRMLS_DC) /* {{{ */
+static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *timers, long flags TSRMLS_DC) /* {{{ */
 {
 	int ret = SUCCESS, timers_num, dict_cnt = 0;
 	HashTable dict;
@@ -333,6 +335,11 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 				zend_hash_move_forward_ex(timers, &pos)) {
 			t = *t_el;
 			if (php_pinba_tags_to_hashed_string(t, &hashed_tags, &hashed_tags_len TSRMLS_CC) != SUCCESS) {
+				continue;
+			}
+
+			/* aggregate only stopped timers */
+			if ((flags & PINBA_FLUSH_ONLY_STOPPED_TIMERS) != 0 && t->started) {
 				continue;
 			}
 
@@ -476,7 +483,7 @@ static inline void php_pinba_req_data_dtor(pinba_req_data *record) /* {{{ */
 }
 /* }}} */
 
-static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{{ */
+static void php_pinba_flush_data(const char *custom_script_name, long flags TSRMLS_DC) /* {{{ */
 {
 	struct timeval req_finish;
 	struct rusage u;
@@ -491,8 +498,10 @@ static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{
 	/* no data available */
 	PINBA_G(tmp_req_data).mem_peak_usage = 0;
 #endif
-	/* stop all running timers */
-	zend_hash_apply_with_argument(&EG(regular_list), (apply_func_arg_t) php_pinba_timer_stop_helper, (void *)(long)le_pinba_timer TSRMLS_CC);
+	if ((flags & PINBA_FLUSH_ONLY_STOPPED_TIMERS) == 0) {
+		/* stop all running timers */
+		zend_hash_apply_with_argument(&EG(regular_list), (apply_func_arg_t) php_pinba_timer_stop_helper, (void *)(long)le_pinba_timer TSRMLS_CC);
+	}
 	/* prevent any further access to the timers */
 	PINBA_G(timers_stopped) = 1;
 
@@ -546,7 +555,7 @@ static void php_pinba_flush_data(const char *custom_script_name TSRMLS_DC) /* {{
 		req_data.script_name = estrdup("unknown");
 	}
 
-	php_pinba_req_data_send(req_data, &PINBA_G(timers) TSRMLS_CC);
+	php_pinba_req_data_send(req_data, &PINBA_G(timers), flags TSRMLS_CC);
 	php_pinba_req_data_dtor(&req_data);
 
 	PINBA_G(timers_stopped) = 0;
@@ -1061,18 +1070,24 @@ static PHP_FUNCTION(pinba_timer_tags_replace)
 }
 /* }}} */
 
-/* {{{ proto bool pinba_flush([string custom_script_name])
+/* {{{ proto bool pinba_flush([string custom_script_name[, int flags]])
    Flush the data */
 static PHP_FUNCTION(pinba_flush)
 {
-	char *script_name = NULL;
-	int script_name_len;
+	zval **script_name = NULL;
+	long flags = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &script_name, &script_name_len) != SUCCESS) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|Zl", &script_name, &flags) != SUCCESS) {
 		return;
 	}
 
-	php_pinba_flush_data(script_name TSRMLS_CC);
+	if (script_name && Z_TYPE_PP(script_name) != IS_NULL) {
+		convert_to_string_ex(script_name);
+		php_pinba_flush_data(Z_STRVAL_PP(script_name), flags TSRMLS_CC);
+	} else {
+		php_pinba_flush_data(NULL, flags TSRMLS_CC);
+	}
+
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1369,6 +1384,8 @@ static PHP_MINIT_FUNCTION(pinba)
 	REGISTER_INI_ENTRIES();
 
 	le_pinba_timer = zend_register_list_destructors_ex(php_timer_resource_dtor, NULL, "pinba timer", module_number);
+
+	REGISTER_LONG_CONSTANT("PINBA_FLUSH_ONLY_STOPPED_TIMERS", PINBA_FLUSH_ONLY_STOPPED_TIMERS, CONST_CS | CONST_PERSISTENT);
 	return SUCCESS;
 }
 /* }}} */
@@ -1446,7 +1463,7 @@ static PHP_RINIT_FUNCTION(pinba)
  */
 static PHP_RSHUTDOWN_FUNCTION(pinba)
 {
-	php_pinba_flush_data(NULL TSRMLS_CC);
+	php_pinba_flush_data(NULL, 0 TSRMLS_CC);
 
 	zend_hash_destroy(&PINBA_G(timers));
 	OG(php_header_write) = PINBA_G(old_sapi_ub_write);
