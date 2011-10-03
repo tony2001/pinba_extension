@@ -232,6 +232,9 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 		if (zend_hash_index_exists(&PINBA_G(timers), t->rsrc_id) == 0) {
 			zend_hash_index_update(&PINBA_G(timers), t->rsrc_id, &t, sizeof(pinba_timer_t *), NULL);
 		}
+	} else {
+		php_pinba_timer_dtor(t);
+		efree(t);
 	}
 }
 /* }}} */
@@ -1401,6 +1404,9 @@ static PHP_MSHUTDOWN_FUNCTION(pinba)
 	}
 	if (PINBA_G(server_host)) {
 		free(PINBA_G(server_host));
+	}
+	if (PINBA_G(server_port)) {
+		free(PINBA_G(server_port));
 	}
 	return SUCCESS;
 }
