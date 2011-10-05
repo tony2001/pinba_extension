@@ -256,7 +256,7 @@ static int sapi_ub_write_counter(const char *str, unsigned int length TSRMLS_DC)
 }
 /* }}} */
 
-static int php_pinba_init_socket (void) /* {{{ */
+static int php_pinba_init_socket (TSRMLS_D) /* {{{ */
 {
 	struct addrinfo *ai_list;
 	struct addrinfo *ai_ptr;
@@ -515,7 +515,7 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 		return;
 	}
 
-	status = php_pinba_init_socket();
+	status = php_pinba_init_socket(TSRMLS_C);
 	if (status != 0) {
 		PINBA_G(timers_stopped) = 0;
 		return;
