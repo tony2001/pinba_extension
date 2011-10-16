@@ -52,27 +52,17 @@ if test "$PHP_PINBA" != "no"; then
   dnl Google Protobuf >= 2.1.0 uses pthread_once() in its headers
   if test "$GPB_VERSION" -ge "2001000"; then
     old_LDFLAGS=$LDFLAGS
-    LDFLAGS=-lpthread
     old_LIBS=$LIBS
     LIBS=
-    THREAD_LIB=""
-    
-    AC_CHECK_FUNC(pthread_once,[
-      THREAD_LIB=pthread
-    ],[
-      LDFLAGS=-lc_r
-      AC_CHECK_FUNC(pthread_once, [
-        THREAD_LIB=c_r
-      ],[
-        LDFLAGS=-lc
-        AC_CHECK_FUNC(pthread_once, [
-          THREAD_LIB=c
-        ],[
-          AC_MSG_ERROR([pthread_once() is required for Google Protocol Buffers >= 2.1.0, but it could not be found, exiting])
-        ])
-      ])
+   
+    AC_SEARCH_LIBS([pthread_once], [pthread c_r c], [ pthread_once=none ], [
+       AC_MSG_ERROR([pthread_once() is required for Google Protocol Buffers >= 2.1.0, but it could not be found, exiting])
     ])
-    LDFLAGS="$old_LDFLAGS -l$THREAD_LIB"
+    if test "$ac_cv_search_pthread_once" != "none required" && test "$ac_cv_search_pthread_once" != "no"; then
+      LDFLAGS="$old_LDFLAGS $ac_cv_search_pthread_once"
+    else 
+      LDFLAGS="$old_LDFLAGS"
+    fi
     LIBS="$old_LIBS"
   fi
 
