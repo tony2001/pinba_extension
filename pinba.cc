@@ -1476,9 +1476,11 @@ static PHP_RSHUTDOWN_FUNCTION(pinba)
 
 	if (PINBA_G(server_name)) {
 		efree(PINBA_G(server_name));
+		PINBA_G(server_name) = NULL;
 	}
 	if (PINBA_G(script_name)) {
 		efree(PINBA_G(script_name));
+		PINBA_G(script_name) = NULL;
 	}
 	return SUCCESS;
 }
