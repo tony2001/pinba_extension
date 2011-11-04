@@ -1927,7 +1927,13 @@ static PHP_RINIT_FUNCTION(pinba)
  */
 static PHP_RSHUTDOWN_FUNCTION(pinba)
 {
-	php_pinba_flush_data(NULL, 0 TSRMLS_CC);
+	return SUCCESS;
+}
+/* }}} */
+
+static ZEND_MODULE_POST_ZEND_DEACTIVATE_D(pinba) /* {{{ */
+{
+	php_pinba_flush_data(NULL, PINBA_FLUSH_ONLY_STOPPED_TIMERS TSRMLS_CC);
 
 	zend_hash_destroy(&PINBA_G(timers));
 
@@ -1982,7 +1988,11 @@ zend_module_entry pinba_module_entry = {
 #if ZEND_MODULE_API_NO >= 20010901
 	PHP_PINBA_VERSION,
 #endif
-	STANDARD_MODULE_PROPERTIES
+	ZEND_MODULE_GLOBALS(pinba),
+	NULL,
+	NULL,
+	ZEND_MODULE_POST_ZEND_DEACTIVATE_N(pinba),
+	STANDARD_MODULE_PROPERTIES_EX
 };
 /* }}} */
 
