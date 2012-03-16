@@ -582,7 +582,7 @@ static int php_pinba_key_compare(const void *a, const void *b TSRMLS_DC) /* {{{ 
 		Z_LVAL(first) = f->h;
 	} else {
 		Z_TYPE(first) = IS_STRING;
-		Z_STRVAL(first) = f->arKey;
+		Z_STRVAL(first) = (char *)f->arKey;
 		Z_STRLEN(first) = f->nKeyLength - 1;
 	}
 
@@ -591,7 +591,7 @@ static int php_pinba_key_compare(const void *a, const void *b TSRMLS_DC) /* {{{ 
 		Z_LVAL(second) = s->h;
 	} else {
 		Z_TYPE(second) = IS_STRING;
-		Z_STRVAL(second) = s->arKey;
+		Z_STRVAL(second) = (char *)s->arKey;
 		Z_STRLEN(second) = s->nKeyLength - 1;
 	}
 
@@ -1143,13 +1143,13 @@ static PHP_FUNCTION(pinba_get_info)
 	if (PINBA_G(server_name)) {
 		add_assoc_string_ex(return_value, "server_name", sizeof("server_name"), PINBA_G(server_name), 1);
 	} else {
-		add_assoc_string_ex(return_value, "server_name", sizeof("server_name"), "unknown", 1);
+		add_assoc_string_ex(return_value, "server_name", sizeof("server_name"), (char *)"unknown", 1);
 	}
 
 	if (PINBA_G(script_name)) {
 		add_assoc_string_ex(return_value, "script_name", sizeof("script_name"), PINBA_G(script_name), 1);
 	} else {
-		add_assoc_string_ex(return_value, "script_name", sizeof("script_name"), "unknown", 1);
+		add_assoc_string_ex(return_value, "script_name", sizeof("script_name"), (char *)"unknown", 1);
 	}
 
 	MAKE_STD_ZVAL(timers);
@@ -1259,7 +1259,7 @@ static PHP_FUNCTION(pinba_hostname_set)
 
 /* {{{ pinba_functions[]
  */
-function_entry pinba_functions[] = {
+zend_function_entry pinba_functions[] = {
 	PHP_FE(pinba_timer_start, NULL)
 	PHP_FE(pinba_timer_add, NULL)
 	PHP_FE(pinba_timer_stop, NULL)
@@ -1362,8 +1362,8 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 /* {{{ PHP_INI
  */
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("pinba.server", NULL, PHP_INI_SYSTEM|PHP_INI_PERDIR, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
-    STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
+    STD_PHP_INI_ENTRY((char *)"pinba.server", NULL, PHP_INI_SYSTEM|PHP_INI_PERDIR, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
+    STD_PHP_INI_ENTRY((char *)"pinba.enabled", (char *)"0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -1458,8 +1458,14 @@ static PHP_RINIT_FUNCTION(pinba)
 		PINBA_G(server_name) = estrndup(Z_STRVAL_PP(tmp), Z_STRLEN_PP(tmp));
 	}
 
+#if PHP_VERSION_ID < 50400
 	PINBA_G(old_sapi_ub_write) = OG(php_header_write);
 	OG(php_header_write) = sapi_ub_write_counter;
+#else
+	/* new output API */
+	PINBA_G(old_sapi_ub_write) = sapi_module.ub_write;
+	sapi_module.ub_write = sapi_ub_write_counter;
+#endif
 
 	return SUCCESS;
 }
@@ -1472,7 +1478,12 @@ static PHP_RSHUTDOWN_FUNCTION(pinba)
 	php_pinba_flush_data(NULL, 0 TSRMLS_CC);
 
 	zend_hash_destroy(&PINBA_G(timers));
+
+#if PHP_VERSION_ID < 50400
 	OG(php_header_write) = PINBA_G(old_sapi_ub_write);
+#else
+	sapi_module.ub_write = PINBA_G(old_sapi_ub_write);
+#endif
 
 	if (PINBA_G(server_name)) {
 		efree(PINBA_G(server_name));
