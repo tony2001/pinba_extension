@@ -1362,8 +1362,8 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 /* {{{ PHP_INI
  */
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY((char *)"pinba.server", NULL, PHP_INI_SYSTEM|PHP_INI_PERDIR, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
-    STD_PHP_INI_ENTRY((char *)"pinba.enabled", (char *)"0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
+    STD_PHP_INI_ENTRY("pinba.server", NULL, PHP_INI_SYSTEM|PHP_INI_PERDIR, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
+    STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
 PHP_INI_END()
 /* }}} */
 
