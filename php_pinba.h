@@ -43,6 +43,7 @@ typedef struct _pinba_req_data { /* {{{ */
 	struct timeval req_time;
 	struct timeval ru_utime;
 	struct timeval ru_stime;
+	unsigned int memory_footprint;
 } pinba_req_data;
 /* }}} */
 

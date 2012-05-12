@@ -40,6 +40,10 @@ extern "C" {
 #include "SAPI.h"
 #include "ext/standard/info.h"
 #include "ext/standard/php_array.h"
+
+#ifdef HAVE_MALLOC_H
+# include <malloc.h>
+#endif
 }
 
 #include "php_pinba.h"
@@ -406,6 +410,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 	request->set_ru_utime(timeval_to_float(record.ru_utime));
 	request->set_ru_stime(timeval_to_float(record.ru_stime));
 	request->set_status(SG(sapi_headers).http_response_code);
+	request->set_memory_footprint(record.memory_footprint);
 
 	/* timers */
 	if (timers_num > 0) {
@@ -558,6 +563,17 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 	if (!req_data.script_name) {
 		req_data.script_name = estrdup("unknown");
 	}
+
+#if defined(HAVE_MALLOC_H) && defined(HAVE_MALLINFO)
+	{
+		struct mallinfo info;
+
+		info = mallinfo();
+		req_data.memory_footprint = info.arena + info.hblkhd;
+	}
+#else
+	req_data.memory_footprint = 0;
+#endif
 
 	php_pinba_req_data_send(req_data, &PINBA_G(timers), flags TSRMLS_CC);
 	php_pinba_req_data_dtor(&req_data);
