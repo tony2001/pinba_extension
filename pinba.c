@@ -918,7 +918,7 @@ static char *mt_get_function_name(zend_op_array *op_array TSRMLS_DC) /* {{{ */
 		class_name = get_active_class_name(&space TSRMLS_CC);
 	}
 
-	if (space[0] == '\0') {
+	if (class_name[0] == '\0') {
 		if (op_array) {
 			current_fname = op_array->function_name;
 		} else {
@@ -1109,7 +1109,11 @@ void pinba_execute_internal(zend_execute_data *current_execute_data, int return_
 		if (pinba_old_execute_internal) {
 			pinba_old_execute_internal(current_execute_data, return_value_used TSRMLS_CC);
 		} else {
-			execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+			if (zend_execute_internal) {
+				zend_execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+			} else {
+				execute_internal(current_execute_data, return_value_used TSRMLS_CC);
+			}
 		}
 	} else {
 		int rsrc_id;
@@ -1791,8 +1795,8 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("pinba.server", NULL, PHP_INI_SYSTEM|PHP_INI_PERDIR, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
-	STD_PHP_INI_ENTRY("pinba.autotimers_user", "0", PHP_INI_SYSTEM, OnUpdateBool, autotimers_user, zend_pinba_globals, pinba_globals)
-	STD_PHP_INI_ENTRY("pinba.autotimers_internal", "0", PHP_INI_SYSTEM, OnUpdateBool, autotimers_internal, zend_pinba_globals, pinba_globals)
+	STD_PHP_INI_ENTRY("pinba.autotimers_user", "0", PHP_INI_ALL, OnUpdateBool, autotimers_user, zend_pinba_globals, pinba_globals)
+	STD_PHP_INI_ENTRY("pinba.autotimers_internal", "0", PHP_INI_ALL, OnUpdateBool, autotimers_internal, zend_pinba_globals, pinba_globals)
 	STD_PHP_INI_ENTRY("pinba.ignore_functions", "", PHP_INI_SYSTEM, OnUpdateString, ignore_functions, zend_pinba_globals, pinba_globals)
 PHP_INI_END()
 /* }}} */
@@ -1910,11 +1914,15 @@ static PHP_RINIT_FUNCTION(pinba)
 	php_pinba_parse_ignore_funcs(TSRMLS_C);
 	php_pinba_ignore_pinba_funcs(TSRMLS_C);
 
-	if ((PINBA_G(autotimers_user) || PINBA_G(autotimers_internal)) && !pinba_execute_initialized) {
+	if (!pinba_execute_initialized) {
 		pinba_old_execute = zend_execute;
 		zend_execute = pinba_execute;
 
-		pinba_old_execute_internal = zend_execute_internal;
+		if (zend_execute_internal) {
+			pinba_old_execute_internal = zend_execute_internal;
+		} else {
+			pinba_old_execute_internal = execute_internal;
+		}
 		zend_execute_internal = pinba_execute_internal;
 		pinba_execute_initialized = 1;
 	}
