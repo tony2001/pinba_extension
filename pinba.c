@@ -23,7 +23,6 @@
 #include "config.h"
 #endif
 
-extern "C" {
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -40,20 +39,15 @@ extern "C" {
 #include "SAPI.h"
 #include "ext/standard/info.h"
 #include "ext/standard/php_array.h"
-}
 
 #include "php_pinba.h"
 
-#include <string>
-using namespace std;
-#include "pinba-pb.h"
+#include "pinba.pb-c.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(pinba)
 
 #ifdef COMPILE_DL_PINBA
-BEGIN_EXTERN_C()
 ZEND_GET_MODULE(pinba)
-END_EXTERN_C()
 #endif
 
 static int le_pinba_timer;
@@ -315,7 +309,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 	HashTable dict;
 	HashTable timers_uniq;
 	HashPosition pos;
-	Pinba::Request *request;
+	Pinba__Request *request;
 	int i;
 
 	/* no socket -> bail out */
@@ -393,24 +387,40 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 		}
 	}
 
-	request = new Pinba::Request;
+	request = malloc(sizeof(Pinba__Request));
 
-	request->set_hostname(PINBA_G(host_name));
-	request->set_server_name(record.server_name);
-	request->set_script_name(record.script_name);
-	request->set_request_count(record.req_count);
-	request->set_document_size(record.doc_size);
-	request->set_memory_peak(record.mem_peak_usage);
-	request->set_request_time(timeval_to_float(record.req_time));
-	request->set_ru_utime(timeval_to_float(record.ru_utime));
-	request->set_ru_stime(timeval_to_float(record.ru_stime));
-	request->set_status(SG(sapi_headers).http_response_code);
+	if (!request) {
+		return FAILURE;
+	}
+
+	pinba__request__init(request);
+
+	request->hostname = strdup(PINBA_G(host_name));
+	request->server_name = strdup(record.server_name);
+	request->script_name = strdup(record.script_name);
+	request->request_count = record.req_count;
+	request->document_size = record.doc_size;
+	request->memory_peak = record.mem_peak_usage;
+	request->request_time = timeval_to_float(record.req_time);
+	request->ru_utime = timeval_to_float(record.ru_utime);
+	request->ru_stime = timeval_to_float(record.ru_stime);
+	request->status = SG(sapi_headers).http_response_code;
+	request->has_status = 1;
 
 	/* timers */
 	if (timers_num > 0) {
 		pinba_timer_t *t, **t_el;
-		int *id;
+		int *id, n;
 
+		n = zend_hash_num_elements(&dict);
+
+		request->dictionary = malloc(sizeof(char *) * n);
+		if (!request->dictionary) {
+			pinba__request__free_unpacked(request, NULL);
+			return FAILURE;
+		}
+
+		n = 0;
 		for (zend_hash_internal_pointer_reset_ex(&dict, &pos);
 				zend_hash_get_current_data_ex(&dict, (void **) &id, &pos) == SUCCESS;
 				zend_hash_move_forward_ex(&dict, &pos)) {
@@ -419,43 +429,75 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 			ulong dummy;
 
 			if (zend_hash_get_current_key_ex(&dict, &str, &str_len, &dummy, 0, &pos) == HASH_KEY_IS_STRING) {
-				request->add_dictionary(str);
+				request->dictionary[n] = strdup(str);
+				n++;
 			} else {
 				continue;
 			}
 		}
 		zend_hash_destroy(&dict);
 
+		request->n_dictionary = n;
+
+		n = zend_hash_num_elements(&timers_uniq);
+		request->timer_hit_count = malloc(sizeof(unsigned int) * n);
+		request->timer_tag_count = malloc(sizeof(unsigned int) * n);
+		request->timer_tag_name = NULL;
+		request->timer_tag_value = NULL;
+		request->timer_value = malloc(sizeof(float) * n);
+
+		if (!request->timer_hit_count || !request->timer_tag_count || !request->timer_value) {
+			pinba__request__free_unpacked(request, NULL);
+			return FAILURE;
+		}
+
+		n = 0;
 		for (zend_hash_internal_pointer_reset_ex(&timers_uniq, &pos);
 				zend_hash_get_current_data_ex(&timers_uniq, (void **) &t_el, &pos) == SUCCESS;
 				zend_hash_move_forward_ex(&timers_uniq, &pos)) {
 			
 			t = *t_el;
 
-			for (i = 0; i < t->tags_num; i++) {
-				request->add_timer_tag_name(t->tags[i]->name_id);
-				request->add_timer_tag_value(t->tags[i]->value_id);
+			request->timer_tag_name = realloc(request->timer_tag_name, sizeof(unsigned int) * (request->n_timer_tag_name + t->tags_num));
+			request->timer_tag_value = realloc(request->timer_tag_value, sizeof(unsigned int) * (request->n_timer_tag_value + t->tags_num));
+
+			if (!request->timer_tag_name || !request->timer_tag_value) {
+				pinba__request__free_unpacked(request, NULL);
+				return FAILURE;
 			}
-			
-			request->add_timer_tag_count(i);
-			request->add_timer_hit_count(t->hit_count);
-			request->add_timer_value(timeval_to_float(t->value));
+
+			for (i = 0; i < t->tags_num; i++) {
+				request->timer_tag_name[request->n_timer_tag_name + i] = t->tags[i]->name_id;
+				request->timer_tag_value[request->n_timer_tag_value + i] = t->tags[i]->value_id;
+			}
+		
+			request->n_timer_tag_name += i;
+			request->n_timer_tag_value += i;
+
+			request->timer_tag_count[n] = i;
+			request->timer_hit_count[n] = t->hit_count;
+			request->timer_value[n] = timeval_to_float(t->value);
+			n++;
 		}
+		request->n_timer_tag_count = n;
+		request->n_timer_hit_count = n;
+		request->n_timer_value = n;
 		zend_hash_destroy(&timers_uniq);
 	}
 
 	if (ret == SUCCESS) {
 		size_t total_sent = 0;
 		ssize_t sent;
-		string data;
-		bool res;
+		unsigned char pad[256]; 
+		ProtobufCBufferSimple buf = PROTOBUF_C_BUFFER_SIMPLE_INIT (pad);
+		ProtobufCBuffer *buffer = (ProtobufCBuffer *) &buf;
 
-		res = request->SerializeToString(&data);
+		pinba__request__pack_to_buffer(request, buffer);
 
-		while (total_sent < data.size()) {
+		while (total_sent < buf.len) {
 			int flags = 0;
 
-			sent = sendto(pinba_socket, data.c_str() + total_sent, data.size() - total_sent, flags,
+			sent = sendto(pinba_socket, buf.data + total_sent, buf.len - total_sent, flags,
 					(struct sockaddr *) &PINBA_G(collector_sockaddr), PINBA_G(collector_sockaddr_len));
 			if (sent < 0) {
 				ret = FAILURE;
@@ -467,7 +509,8 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 		ret = FAILURE;
 	}
 
-	delete request;
+	pinba__request__free_unpacked(request, NULL);
+
 	return ret;
 }
 /* }}} */
@@ -1501,14 +1544,10 @@ static PHP_RSHUTDOWN_FUNCTION(pinba)
  */
 static PHP_MINFO_FUNCTION(pinba)
 {
-	string version;
-
-	version = google::protobuf::internal::VersionString(GOOGLE_PROTOBUF_VERSION);
 
 	php_info_print_table_start();
 	php_info_print_table_header(2, "Pinba support", "enabled");
 	php_info_print_table_row(2, "Extension version", PHP_PINBA_VERSION);
-	php_info_print_table_row(2, "Google Protocol Buffers version", version.c_str());
 	php_info_print_table_end();
 
 	DISPLAY_INI_ENTRIES();
