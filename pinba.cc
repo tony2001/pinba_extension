@@ -781,7 +781,7 @@ static PHP_FUNCTION(pinba_timer_start)
 	t->started = 1;
 	t->hit_count = 1;
 
-	t->rsrc_id = zend_list_insert(t, le_pinba_timer);
+	t->rsrc_id = zend_list_insert(t, le_pinba_timer TSRMLS_CC);
 
 	if (getrusage(RUSAGE_SELF, &u) == 0) {
 		timeval_cvt(&t->tmp_ru_utime, &u.ru_utime);
@@ -839,7 +839,7 @@ static PHP_FUNCTION(pinba_timer_add)
 	t->value.tv_sec = time_l / 1000000;
 	t->value.tv_usec = time_l % 1000000;
 
-	t->rsrc_id = zend_list_insert(t, le_pinba_timer);
+	t->rsrc_id = zend_list_insert(t, le_pinba_timer TSRMLS_CC);
 
 	/* refcount++ so that the timer is shut down only on request finish if not stopped manually */
 	zend_list_addref(t->rsrc_id);
