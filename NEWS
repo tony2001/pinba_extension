@@ -1,6 +1,8 @@
-Pinba 1.0.0      ?? ??? ????
+Pinba 1.0.0      17 Aug 2012
 ----------------------------
-
+- Fixed 5_4 build.
+- Fixed several minor memleaks.
+- Added optional flag to pinba_flush() to flush only stopped timers (use PINBA_FLUSH_ONLY_STOPPED_TIMERS).
 
 Pinba 0.0.6      26 Nov 2010
 ----------------------------
