@@ -1,3 +1,7 @@
+Pinba 1.1.0      ?? ??? ????
+----------------------------
+- Added flag to reset request data when doing pinba_flush(), use PINBA_FLUSH_RESET_DATA constant for that.
+
 Pinba 1.0.0      17 Aug 2012
 ----------------------------
 - Fixed 5_4 build.

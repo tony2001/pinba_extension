@@ -66,6 +66,7 @@ static int pinba_socket = -1;
 #endif
 
 #define PINBA_FLUSH_ONLY_STOPPED_TIMERS (1<<0)
+#define PINBA_FLUSH_RESET_DATA (1<<1)
 
 typedef struct _pinba_timer_tag { /* {{{ */
 	char *name;
@@ -560,6 +561,24 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 
 	php_pinba_req_data_send(req_data, &PINBA_G(timers), flags TSRMLS_CC);
 	php_pinba_req_data_dtor(&req_data);
+
+	if (flags & PINBA_FLUSH_RESET_DATA) {
+		struct timeval t;
+		struct rusage u;
+
+		if (gettimeofday(&t, 0) == 0) {
+			timeval_cvt(&(PINBA_G(tmp_req_data).req_start), &t);
+		}
+
+		if (getrusage(RUSAGE_SELF, &u) == 0) {
+			timeval_cvt(&(PINBA_G(tmp_req_data).ru_utime), &u.ru_utime);
+			timeval_cvt(&(PINBA_G(tmp_req_data).ru_stime), &u.ru_stime);
+		}
+
+		PINBA_G(tmp_req_data).doc_size = 0;
+		PINBA_G(tmp_req_data).mem_peak_usage= 0;
+		PINBA_G(tmp_req_data).req_count = 0;
+	}
 
 	PINBA_G(timers_stopped) = 0;
 	zend_hash_clean(&PINBA_G(timers));
@@ -1397,6 +1416,7 @@ static PHP_MINIT_FUNCTION(pinba)
 	le_pinba_timer = zend_register_list_destructors_ex(php_timer_resource_dtor, NULL, "pinba timer", module_number);
 
 	REGISTER_LONG_CONSTANT("PINBA_FLUSH_ONLY_STOPPED_TIMERS", PINBA_FLUSH_ONLY_STOPPED_TIMERS, CONST_CS | CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("PINBA_FLUSH_RESET_DATA", PINBA_FLUSH_RESET_DATA, CONST_CS | CONST_PERSISTENT);
 	return SUCCESS;
 }
 /* }}} */
