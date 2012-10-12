@@ -42,10 +42,14 @@ struct  _Pinba__Request
   char **dictionary;
   protobuf_c_boolean has_status;
   uint32_t status;
+  protobuf_c_boolean has_memory_footprint;
+  uint32_t memory_footprint;
+  size_t n_requests;
+  Pinba__Request **requests;
 };
 #define PINBA__REQUEST__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&pinba__request__descriptor) \
-    , NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0,NULL, 0,NULL, 0,NULL, 0,NULL, 0,NULL, 0,NULL, 0,0 }
+    , NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0,NULL, 0,NULL, 0,NULL, 0,NULL, 0,NULL, 0,NULL, 0,0, 0,0, 0,NULL }
 
 
 /* Pinba__Request methods */

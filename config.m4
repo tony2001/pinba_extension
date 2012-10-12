@@ -4,5 +4,9 @@ PHP_ARG_ENABLE(pinba, for Pinba support,
 [  --enable-pinba[=DIR]         Include Pinba support.])
 
 if test "$PHP_PINBA" != "no"; then
+
+  AC_CHECK_HEADERS(malloc.h)
+  PHP_CHECK_FUNC(mallinfo)
+
   PHP_NEW_EXTENSION(pinba, pinba-pb-c.c pinba.c protobuf-c.c, $ext_shared,, -DNDEBUG)
 fi
