@@ -3,6 +3,7 @@ Pinba 1.1.0      ?? ??? ????
 - Added flag to reset request data when doing pinba_flush(), use PINBA_FLUSH_RESET_DATA constant for that.
 - Reimplemented the extension using protobuf-c instead of C++ Protobuf lib.
 - Added memory_footprint field to the data (uses mallinfo() where available).
+- Added pinba_timers_get() function.
 
 Pinba 1.0.0      17 Aug 2012
 ----------------------------
