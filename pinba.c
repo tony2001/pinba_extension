@@ -65,6 +65,7 @@ static int pinba_socket = -1;
 
 #define PINBA_FLUSH_ONLY_STOPPED_TIMERS (1<<0)
 #define PINBA_FLUSH_RESET_DATA (1<<1)
+#define PINBA_ONLY_RUNNING_TIMERS (1<<2)
 
 typedef struct _pinba_timer_tag { /* {{{ */
 	char *name;
@@ -1302,6 +1303,37 @@ static PHP_FUNCTION(pinba_timers_stop)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_timers_get()
+   Get timers */
+static PHP_FUNCTION(pinba_timers_get)
+{
+	zend_rsrc_list_entry *le;
+	HashPosition pos;
+	pinba_timer_t *t;
+	long flag = 0;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &flag) != SUCCESS) {
+		return;
+	}
+
+	array_init(return_value);
+	for (zend_hash_internal_pointer_reset_ex(&EG(regular_list), &pos);
+			zend_hash_get_current_data_ex((&EG(regular_list)), (void **) &le, &pos) == SUCCESS;
+			zend_hash_move_forward_ex(&EG(regular_list), &pos)) {
+		if (le->type == le_pinba_timer) {
+			t = (pinba_timer_t *)le->ptr;
+			if ((flag & PINBA_FLUSH_ONLY_STOPPED_TIMERS) && t->started) {
+				continue;
+			}
+			/* refcount++ */
+			zend_list_addref(t->rsrc_id);
+			add_next_index_resource(return_value, t->rsrc_id);
+		}
+	}
+	return;
+}
+/* }}} */
+
 /* {{{ proto bool pinba_script_name_set(string custom_script_name)
    Set custom script name */
 static PHP_FUNCTION(pinba_script_name_set)
@@ -1359,6 +1391,7 @@ zend_function_entry pinba_functions[] = {
 	PHP_FE(pinba_get_info, NULL)
 	PHP_FE(pinba_timer_get_info, NULL)
 	PHP_FE(pinba_timers_stop, NULL)
+	PHP_FE(pinba_timers_get, NULL)
 	PHP_FE(pinba_script_name_set, NULL)
 	PHP_FE(pinba_hostname_set, NULL)
 	{NULL, NULL, NULL}
@@ -1477,6 +1510,8 @@ static PHP_MINIT_FUNCTION(pinba)
 
 	REGISTER_LONG_CONSTANT("PINBA_FLUSH_ONLY_STOPPED_TIMERS", PINBA_FLUSH_ONLY_STOPPED_TIMERS, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("PINBA_FLUSH_RESET_DATA", PINBA_FLUSH_RESET_DATA, CONST_CS | CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("PINBA_ONLY_STOPPED_TIMERS", PINBA_FLUSH_ONLY_STOPPED_TIMERS, CONST_CS | CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("PINBA_ONLY_RUNNING_TIMERS", PINBA_ONLY_RUNNING_TIMERS, CONST_CS | CONST_PERSISTENT);
 	return SUCCESS;
 }
 /* }}} */
