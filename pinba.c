@@ -239,11 +239,19 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 }
 /* }}} */
 
-static int php_pinba_timer_stop_helper(zend_rsrc_list_entry *le, void *le_type TSRMLS_DC) /* {{{ */
+static int php_pinba_timer_stop_helper(zend_rsrc_list_entry *le, void *arg TSRMLS_DC) /* {{{ */
 {
+	long flags = (long)arg;
+
 	if (le->type == le_pinba_timer) {
-		/* remove not looking at the refcount */
-		return ZEND_HASH_APPLY_REMOVE;
+		pinba_timer_t *t = (pinba_timer_t *)le->ptr;
+
+		if ((flags & PINBA_FLUSH_ONLY_STOPPED_TIMERS) && t->started) {
+			return ZEND_HASH_APPLY_KEEP;
+		} else {
+			/* remove not looking at the refcount */
+			return ZEND_HASH_APPLY_REMOVE;
+		}
 	}
 	return ZEND_HASH_APPLY_KEEP;
 }
@@ -337,12 +345,13 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 				zend_hash_get_current_data_ex(timers, (void **) &t_el, &pos) == SUCCESS;
 				zend_hash_move_forward_ex(timers, &pos)) {
 			t = *t_el;
-			if (php_pinba_tags_to_hashed_string(t, &hashed_tags, &hashed_tags_len TSRMLS_CC) != SUCCESS) {
-				continue;
-			}
 
 			/* aggregate only stopped timers */
 			if ((flags & PINBA_FLUSH_ONLY_STOPPED_TIMERS) != 0 && t->started) {
+				continue;
+			}
+
+			if (php_pinba_tags_to_hashed_string(t, &hashed_tags, &hashed_tags_len TSRMLS_CC) != SUCCESS) {
 				continue;
 			}
 
@@ -552,10 +561,9 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 	/* no data available */
 	PINBA_G(tmp_req_data).mem_peak_usage = 0;
 #endif
-	if ((flags & PINBA_FLUSH_ONLY_STOPPED_TIMERS) == 0) {
-		/* stop all running timers */
-		zend_hash_apply_with_argument(&EG(regular_list), (apply_func_arg_t) php_pinba_timer_stop_helper, (void *)(long)le_pinba_timer TSRMLS_CC);
-	}
+	/* stop all running timers */
+	zend_hash_apply_with_argument(&EG(regular_list), (apply_func_arg_t) php_pinba_timer_stop_helper, (void *)flags TSRMLS_CC);
+
 	/* prevent any further access to the timers */
 	PINBA_G(timers_stopped) = 1;
 
