@@ -60,6 +60,7 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	HashTable timers;
 	pinba_req_data tmp_req_data;
 	zend_bool timers_stopped;
+	zend_bool in_rshutdown;
 	zend_bool enabled;
 ZEND_END_MODULE_GLOBALS(pinba)
 /* }}} */

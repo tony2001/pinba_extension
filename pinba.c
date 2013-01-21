@@ -228,7 +228,7 @@ static void php_timer_resource_dtor(zend_rsrc_list_entry *entry TSRMLS_DC) /* {{
 		t->data = NULL;
 	}
 
-	if (!t->deleted) {
+	if (!t->deleted && !PINBA_G(in_rshutdown)) {
 		if (zend_hash_index_exists(&PINBA_G(timers), t->rsrc_id) == 0) {
 			zend_hash_index_update(&PINBA_G(timers), t->rsrc_id, &t, sizeof(pinba_timer_t *), NULL);
 		}
@@ -1552,6 +1552,7 @@ static PHP_RINIT_FUNCTION(pinba)
 	struct rusage u;
 
 	PINBA_G(timers_stopped) = 0;
+	PINBA_G(in_rshutdown) = 0;
 	
 	if (gettimeofday(&t, 0) == 0) {
 		timeval_cvt(&(PINBA_G(tmp_req_data).req_start), &t);
@@ -1624,6 +1625,7 @@ static PHP_RSHUTDOWN_FUNCTION(pinba)
 		efree(PINBA_G(script_name));
 		PINBA_G(script_name) = NULL;
 	}
+	PINBA_G(in_rshutdown) = 1;
 	return SUCCESS;
 }
 /* }}} */
