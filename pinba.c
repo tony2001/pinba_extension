@@ -290,7 +290,7 @@ static int php_pinba_init_socket (TSRMLS_D) /* {{{ */
 	ai_list = NULL;
 	status = getaddrinfo(PINBA_G(server_host), PINBA_G(server_port), &ai_hints, &ai_list);
 	if (status != 0) {
-		/* TODO: error reporting */
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", PINBA_G(server_host), gai_strerror(status));
 		return -1;
 	}
 

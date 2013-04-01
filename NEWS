@@ -4,6 +4,7 @@ Pinba 1.1.0      ?? ??? ????
 - Reimplemented the extension using protobuf-c instead of C++ Protobuf lib.
 - Added memory_footprint field to the data (uses mallinfo() where available).
 - Added pinba_timers_get() function.
+- Added error message on hostname resolution failure.
 - Fixed issue #9 (php segfault on shutdown)
 
 Pinba 1.0.0      17 Aug 2012
