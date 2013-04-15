@@ -16,7 +16,7 @@
   |          Florian Forster <ff at octo.it>  (IPv6 support)             |
   +----------------------------------------------------------------------+
 
-  $Id: pinba.cc,v 1.1.2.9 2009/04/28 10:46:55 tony Exp $ 
+  $Id: pinba.cc,v 1.1.2.9 2009/04/28 10:46:55 tony Exp $
 */
 
 #ifdef HAVE_CONFIG_H
@@ -119,21 +119,21 @@ static inline int php_pinba_timer_stop(pinba_timer_t *t) /* {{{ */
 {
 	struct timeval now;
 	struct rusage u, tmp;
-	
+
 	if (!t->started) {
 		return FAILURE;
 	}
-	
+
 	gettimeofday(&now, 0);
 	timersub(&now, &t->start, &t->value);
-	
+
 	if (getrusage(RUSAGE_SELF, &u) == 0) {
 		timersub(&u.ru_utime, &t->tmp_ru_utime, &tmp.ru_utime);
 		timersub(&u.ru_stime, &t->tmp_ru_stime, &tmp.ru_stime);
 		timeradd(&t->ru_utime, &tmp.ru_utime, &t->ru_utime);
 		timeradd(&t->ru_stime, &tmp.ru_stime, &t->ru_stime);
 	}
-	
+
 	t->started = 0;
 	return SUCCESS;
 }
@@ -208,7 +208,7 @@ static int php_pinba_tags_to_hashed_string(pinba_timer_t *timer, char **hashed_t
 
 		memcpy(buf + wrote_len, timer->tags[i]->value, timer->tags[i]->value_len);
 		wrote_len += timer->tags[i]->value_len;
-		
+
 		memcpy(buf + wrote_len, ",", 1);
 		wrote_len += 1;
 	}
@@ -218,7 +218,7 @@ static int php_pinba_tags_to_hashed_string(pinba_timer_t *timer, char **hashed_t
 
 	*hashed_tags = buf;
 	*hashed_tags_len = wrote_len;
-	return SUCCESS;	
+	return SUCCESS;
 }
 /* }}} */
 
@@ -395,11 +395,11 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 
 				if (zend_hash_find(&dict, t->tags[i]->value, t->tags[i]->value_len + 1, (void **)&id) != SUCCESS) {
 					ret = zend_hash_add(&dict, t->tags[i]->value, t->tags[i]->value_len + 1, &dict_cnt, sizeof(int), NULL);
-					
+
 					if (ret != SUCCESS) {
 						break;
 					}
-					
+
 					t->tags[i]->value_id = dict_cnt;
 					dict_cnt++;
 				} else {
@@ -479,7 +479,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 		for (zend_hash_internal_pointer_reset_ex(&timers_uniq, &pos);
 				zend_hash_get_current_data_ex(&timers_uniq, (void **) &t_el, &pos) == SUCCESS;
 				zend_hash_move_forward_ex(&timers_uniq, &pos)) {
-			
+
 			t = *t_el;
 
 			request->timer_tag_name = realloc(request->timer_tag_name, sizeof(unsigned int) * (request->n_timer_tag_name + t->tags_num));
@@ -494,7 +494,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 				request->timer_tag_name[request->n_timer_tag_name + i] = t->tags[i]->name_id;
 				request->timer_tag_value[request->n_timer_tag_value + i] = t->tags[i]->value_id;
 			}
-		
+
 			request->n_timer_tag_name += i;
 			request->n_timer_tag_value += i;
 
@@ -512,7 +512,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, HashTable *time
 	if (ret == SUCCESS) {
 		size_t total_sent = 0;
 		ssize_t sent;
-		unsigned char pad[256]; 
+		unsigned char pad[256];
 		ProtobufCBufferSimple buf = PROTOBUF_C_BUFFER_SIMPLE_INIT (pad);
 		ProtobufCBuffer *buffer = (ProtobufCBuffer *) &buf;
 
@@ -560,7 +560,7 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 	pinba_req_data req_data;
 	int status;
 
-#if PHP_MAJOR_VERSION >= 5 
+#if PHP_MAJOR_VERSION >= 5
 	PINBA_G(tmp_req_data).mem_peak_usage = zend_memory_peak_usage(1 TSRMLS_CC);
 #elif PHP_MAJOR_VERSION == 4 && MEMORY_LIMIT
 	PINBA_G(tmp_req_data).mem_peak_usage = AG(allocated_memory_peak);
@@ -772,7 +772,7 @@ static int php_pinba_array_to_tags(zval *array, pinba_timer_tag_t ***tags TSRMLS
 		}
 		i++;
 	}
-	return SUCCESS;	
+	return SUCCESS;
 }
 /* }}} */
 
@@ -780,7 +780,7 @@ static pinba_timer_t *php_pinba_timer_ctor(pinba_timer_tag_t **tags, int tags_nu
 {
 	struct timeval now;
 	pinba_timer_t *t;
-	
+
 	t = (pinba_timer_t *)ecalloc(1, sizeof(pinba_timer_t));
 	t->tags_num = tags_num;
 	t->tags = tags;
@@ -800,7 +800,7 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info TSRMLS_DC) /* 
 	int i;
 
 	array_init(info);
-	
+
 	if (t->started) {
 		gettimeofday(&tmp, 0);
 		timersub(&tmp, &t->start, &tmp);
@@ -826,7 +826,7 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info TSRMLS_DC) /* 
 	} else {
 		add_assoc_null_ex(info, "data", sizeof("data"));
 	}
-	
+
 	add_assoc_double_ex(info, "ru_utime", sizeof("ru_utime"), timeval_to_float(t->ru_utime));
 	add_assoc_double_ex(info, "ru_stime", sizeof("ru_stime"), timeval_to_float(t->ru_stime));
 }
@@ -888,13 +888,13 @@ static void php_pinba_ignore_pinba_funcs(TSRMLS_D) /* {{{ */
 		return;
 	}
 
-	func = module->functions; 
+	func = module->functions;
 
 	while (func->fname) {
 		zend_hash_add(&PINBA_G(ignore_funcs_hash), func->fname, strlen(func->fname) + 1,  (void *)&dummy, sizeof(int), NULL);
 		func++;
 	}
-	
+
 	zend_hash_add(&PINBA_G(ignore_funcs_hash), "main", sizeof("main"),  (void *)&dummy, sizeof(int), NULL);
 }
 /* }}} */
@@ -1261,7 +1261,7 @@ static PHP_FUNCTION(pinba_timer_stop)
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &timer) != SUCCESS) {
 		return;
 	}
-	
+
 	PHP_ZVAL_TO_TIMER(timer, t);
 
 	if (!t->started) {
@@ -1284,7 +1284,7 @@ static PHP_FUNCTION(pinba_timer_delete)
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &timer) != SUCCESS) {
 		return;
 	}
-	
+
 	PHP_ZVAL_TO_TIMER(timer, t);
 
 	if (t->started) {
@@ -1312,7 +1312,7 @@ static PHP_FUNCTION(pinba_timer_data_merge)
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ra", &timer, &data) != SUCCESS) {
 		return;
 	}
-	
+
 	PHP_ZVAL_TO_TIMER(timer, t);
 
 	if (!t->data) {
@@ -1343,7 +1343,7 @@ static PHP_FUNCTION(pinba_timer_data_replace)
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ra!", &timer, &data) != SUCCESS) {
 		return;
 	}
-	
+
 	PHP_ZVAL_TO_TIMER(timer, t);
 
 	if (Z_TYPE_P(data) == IS_NULL) {
@@ -1449,7 +1449,7 @@ static PHP_FUNCTION(pinba_timer_tags_replace)
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ra", &timer, &tags) != SUCCESS) {
 		return;
 	}
-	
+
 	PHP_ZVAL_TO_TIMER(timer, t);
 
 	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags));
@@ -1462,7 +1462,7 @@ static PHP_FUNCTION(pinba_timer_tags_replace)
 	if (php_pinba_array_to_tags(tags, &new_tags TSRMLS_CC) != SUCCESS) {
 		RETURN_FALSE;
 	}
-	
+
 	php_pinba_timer_tags_dtor(t->tags, t->tags_num);
 	efree(t->tags);
 	t->tags = new_tags;
@@ -1511,7 +1511,7 @@ static PHP_FUNCTION(pinba_get_info)
 
 	array_init(return_value);
 
-#if PHP_MAJOR_VERSION >= 5 
+#if PHP_MAJOR_VERSION >= 5
 	add_assoc_long_ex(return_value, "mem_peak_usage", sizeof("mem_peak_usage"), zend_memory_peak_usage(1 TSRMLS_CC));
 #elif PHP_MAJOR_VERSION == 4 && MEMORY_LIMIT
 	add_assoc_long_ex(return_value, "mem_peak_usage", sizeof("mem_peak_usage"), AG(allocated_memory_peak));
@@ -1864,7 +1864,7 @@ static PHP_RINIT_FUNCTION(pinba)
 
 	PINBA_G(timers_stopped) = 0;
 	PINBA_G(in_rshutdown) = 0;
-	
+
 	if (gettimeofday(&t, 0) == 0) {
 		timeval_cvt(&(PINBA_G(tmp_req_data).req_start), &t);
 	} else {
@@ -1896,7 +1896,7 @@ static PHP_RINIT_FUNCTION(pinba)
 	if (PG(http_globals)[TRACK_VARS_SERVER] && zend_hash_find(HASH_OF(PG(http_globals)[TRACK_VARS_SERVER]), "SCRIPT_NAME", sizeof("SCRIPT_NAME"), (void **) &tmp) != FAILURE && Z_TYPE_PP(tmp) == IS_STRING && Z_STRLEN_PP(tmp) > 0) {
 		PINBA_G(script_name) = estrndup(Z_STRVAL_PP(tmp), Z_STRLEN_PP(tmp));
 	}
-	
+
 	if (PG(http_globals)[TRACK_VARS_SERVER] && zend_hash_find(HASH_OF(PG(http_globals)[TRACK_VARS_SERVER]), "SERVER_NAME", sizeof("SERVER_NAME"), (void **) &tmp) != FAILURE && Z_TYPE_PP(tmp) == IS_STRING && Z_STRLEN_PP(tmp) > 0) {
 		PINBA_G(server_name) = estrndup(Z_STRVAL_PP(tmp), Z_STRLEN_PP(tmp));
 	}
@@ -1959,7 +1959,7 @@ static ZEND_MODULE_POST_ZEND_DEACTIVATE_D(pinba) /* {{{ */
 		efree(PINBA_G(script_name));
 		PINBA_G(script_name) = NULL;
 	}
-	
+
 	PINBA_G(in_rshutdown) = 1;
 	zend_hash_destroy(&PINBA_G(ignore_funcs_hash));
 	return SUCCESS;
