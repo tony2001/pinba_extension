@@ -899,7 +899,7 @@ static void php_pinba_ignore_pinba_funcs(TSRMLS_D) /* {{{ */
 }
 /* }}} */
 
-static void mt_get_function_names(zend_execute_data *execute_data, char **names, int names_cnt TSRMLS_DC) /* {{{ */
+static void mt_get_function_names(zend_execute_data *execute_data, char **names, int names_cnt, int *level TSRMLS_DC) /* {{{ */
 {
 	char *class_name;
 	char *function_name;
@@ -907,6 +907,8 @@ static void mt_get_function_names(zend_execute_data *execute_data, char **names,
 	int class_name_dup;
 	int i;
 	zend_execute_data *ptr = execute_data;
+
+	*level = 0;
 
 	for (i = 0; i < names_cnt && ptr != NULL; i++) {
 		names[i] = NULL;
@@ -960,6 +962,12 @@ static void mt_get_function_names(zend_execute_data *execute_data, char **names,
 		if (class_name && !class_name_dup) {
 			efree(class_name);
 		}
+		(*level)++;
+		ptr = ptr->prev_execute_data;
+	}
+
+	while (ptr != NULL) {
+		(*level)++;
 		ptr = ptr->prev_execute_data;
 	}
 }
@@ -968,17 +976,20 @@ static void mt_get_function_names(zend_execute_data *execute_data, char **names,
 static int pinba_start_autotimer(zend_execute_data *execute_data TSRMLS_DC) /* {{{ */
 {
 	char *function_names[2] = {0}, *lc_function_names[2] = {0};
+	char level_str[64];
+	int level_str_len;
 	int function_name_len[2] = {0};
 	pinba_timer_tag_t **tags;
 	pinba_timer_t *t;
 	struct rusage u;
 	int i;
+	int level;
 
 	if (PINBA_G(timers_stopped)) {
 		return -1;
 	}
 
-	mt_get_function_names(execute_data ? execute_data : EG(current_execute_data), function_names, 2 TSRMLS_CC);
+	mt_get_function_names(execute_data ? execute_data : EG(current_execute_data), function_names, 2, &level TSRMLS_CC);
 
 	if (!function_names[0]) {
 		return -1;
@@ -1012,7 +1023,7 @@ static int pinba_start_autotimer(zend_execute_data *execute_data TSRMLS_DC) /* {
 		}
 	}
 
-	tags = (pinba_timer_tag_t **)ecalloc(2, sizeof(pinba_timer_tag_t *));
+	tags = (pinba_timer_tag_t **)ecalloc(3, sizeof(pinba_timer_tag_t *));
 	tags[0] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
 	tags[0]->name = estrndup("function", sizeof("function") - 1);
 	tags[0]->name_len = sizeof("function") - 1;
@@ -1025,7 +1036,14 @@ static int pinba_start_autotimer(zend_execute_data *execute_data TSRMLS_DC) /* {
 	tags[1]->value = lc_function_names[1];
 	tags[1]->value_len = function_name_len[1];
 
-	t = php_pinba_timer_ctor(tags, 2 TSRMLS_CC);
+	level_str_len = sprintf(level_str, "%d", level);
+	tags[2] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
+	tags[2]->name = estrndup("level", sizeof("level") - 1);
+	tags[2]->name_len = sizeof("level") - 1;
+	tags[2]->value = estrndup(level_str, level_str_len);
+	tags[2]->value_len = level_str_len;
+
+	t = php_pinba_timer_ctor(tags, 3 TSRMLS_CC);
 
 	t->started = 1;
 	t->hit_count = 1;
