@@ -899,151 +899,133 @@ static void php_pinba_ignore_pinba_funcs(TSRMLS_D) /* {{{ */
 }
 /* }}} */
 
-static char *mt_get_function_name(zend_op_array *op_array TSRMLS_DC) /* {{{ */
+static void mt_get_function_names(zend_execute_data *execute_data, char **names, int names_cnt TSRMLS_DC) /* {{{ */
 {
-	char *current_fname = NULL;
-	char *class_name, *fname;
-	zend_bool free_fname = 0;
-	int class_name_len, fname_len;
-	zend_execute_data *exec_data = EG(current_execute_data);
-	zend_class_entry *ce;
+	char *class_name;
+	char *function_name;
+	char *call_type;
+	int class_name_dup;
+	int i;
+	zend_execute_data *ptr = execute_data;
 
-#if PHP_MAJOR_VERSION > 4
-	char *space = "";
+	for (i = 0; i < names_cnt && ptr != NULL; i++) {
+		names[i] = NULL;
+		class_name = NULL;
+		class_name_dup = 1;
+		call_type = NULL;
 
-	if (op_array) {
-		ce = ((zend_function *)op_array)->common.scope;
-		class_name = ce ? (char *)ce->name : (char *)"";
-	} else {
-		class_name = get_active_class_name(&space TSRMLS_CC);
-	}
-
-	if (class_name[0] == '\0') {
-		if (op_array) {
-			current_fname = op_array->function_name;
-		} else {
-			current_fname = get_active_function_name(TSRMLS_C);
-		}
-
-	} else {
-		if (op_array) {
-			fname = op_array->function_name;
-		} else {
-			fname = get_active_function_name(TSRMLS_C);
-		}
-
-		if (fname) {
-			class_name_len = strlen(class_name);
-			fname_len = strlen(fname);
-			if (class_name_len) {
-				current_fname = (char *)emalloc(class_name_len + 2 + fname_len + 1);
-				free_fname = 1;
-
-				memcpy(current_fname, class_name, class_name_len);
-				memcpy(current_fname + class_name_len, "::", 2);
-				memcpy(current_fname + class_name_len + 2, fname, fname_len);
-				current_fname[class_name_len + 2 + fname_len] = '\0';
-			} else {
-				current_fname = fname;
+		function_name = ptr->function_state.function->common.function_name;
+		if (function_name) {
+			if (ptr->object && Z_TYPE_P(ptr->object) == IS_OBJECT) {
+				if (ptr->function_state.function->common.scope) {
+					class_name = ptr->function_state.function->common.scope->name;
+				} else {
+					zend_uint class_name_len;
+					class_name_dup = zend_get_object_classname(ptr->object, &class_name, &class_name_len TSRMLS_CC);
+				}
+				call_type = "->";
+			} else if (ptr->function_state.function->common.scope) {
+				class_name = ptr->function_state.function->common.scope->name;
+				call_type = "::";
 			}
+		} else {
+            if (!ptr->opline || ptr->opline->opcode != ZEND_INCLUDE_OR_EVAL) {
+				/* can happen when calling eval from a custom sapi */
+				function_name = "unknown";
+			} else
+				switch (ptr->opline->op2.u.constant.value.lval) {
+					case ZEND_EVAL:
+						function_name = "eval";
+						break;
+					case ZEND_INCLUDE:
+						function_name = "include";
+						break;
+					case ZEND_REQUIRE:
+						function_name = "require";
+						break;
+					case ZEND_INCLUDE_ONCE:
+						function_name = "include_once";
+						break;
+					case ZEND_REQUIRE_ONCE:
+						function_name = "require_once";
+						break;
+					default:
+						function_name = "unknown";
+						break;
+				}
 		}
-	}
-#else
-	class_name = "";
 
-	if (exec_data && exec_data->ce) {
-		class_name = exec_data->ce->name;
-	} else if (exec_data && exec_data->object.ptr && Z_OBJCE_P(exec_data->object.ptr)) {
-		class_name = Z_OBJCE_P(exec_data->object.ptr)->name;
-	}
+		spprintf(&names[i], 0, "%s%s%s", class_name ? class_name : "", call_type ? call_type : "", function_name);
 
-	if (class_name[0] == '\0') {
-		current_fname = get_active_function_name(TSRMLS_C);
-	} else {
-		fname = get_active_function_name(TSRMLS_C);
-		if (fname) {
-			class_name_len = strlen(class_name);
-			fname_len = strlen(fname);
-
-			current_fname = emalloc(class_name_len + 2 + fname_len + 1);
-			free_fname = 1;
-
-			memcpy(current_fname, class_name, class_name_len);
-			memcpy(current_fname + class_name_len, "::", 2);
-			memcpy(current_fname + class_name_len + 2, fname, fname_len);
-			current_fname[class_name_len + 2 + fname_len] = '\0';
+		if (class_name && !class_name_dup) {
+			efree(class_name);
 		}
-	}
-#endif
-
-	if (!current_fname) {
-		current_fname = "main";
-	}
-
-	if (!free_fname && !strcmp("main", current_fname)) {
-
-		if (exec_data && exec_data->opline && exec_data->opline->op2.op_type == IS_UNUSED) {
-			switch (Z_LVAL(exec_data->opline->op2.u.constant)) {
-				case ZEND_REQUIRE_ONCE:
-					current_fname = "require_once";
-					break;
-				case ZEND_INCLUDE:
-					current_fname = "include";
-					break;
-				case ZEND_REQUIRE:
-					current_fname = "require";
-					break;
-				case ZEND_INCLUDE_ONCE:
-					current_fname = "include_once";
-					break;
-				case ZEND_EVAL:
-					current_fname = "eval";
-					break;
-			}
-		}
-	}
-
-	if (!free_fname) {
-		return estrdup(current_fname);
-	} else {
-		return current_fname;
+		ptr = ptr->prev_execute_data;
 	}
 }
 /* }}} */
 
-static int pinba_start_autotimer(zend_op_array *op_array TSRMLS_DC) /* {{{ */
+static int pinba_start_autotimer(zend_execute_data *execute_data TSRMLS_DC) /* {{{ */
 {
-	char *function_name, *lc_function_name;
-	int function_name_len;
+	char *function_names[2] = {0}, *lc_function_names[2] = {0};
+	int function_name_len[2] = {0};
 	pinba_timer_tag_t **tags;
 	pinba_timer_t *t;
 	struct rusage u;
+	int i;
 
 	if (PINBA_G(timers_stopped)) {
 		return -1;
 	}
 
-	function_name = mt_get_function_name(op_array TSRMLS_CC);
-	function_name_len = strlen(function_name);
-	lc_function_name = estrndup(function_name, function_name_len);
-	zend_str_tolower(lc_function_name, function_name_len);
+	mt_get_function_names(execute_data ? execute_data : EG(current_execute_data), function_names, 2 TSRMLS_CC);
 
-	if (zend_hash_exists(&PINBA_G(ignore_funcs_hash), lc_function_name, function_name_len + 1) != 0) {
-		/* ignored function */
-		efree(function_name);
-		efree(lc_function_name);
+	if (!function_names[0]) {
 		return -1;
 	}
-	efree(function_name);
 
-	tags = (pinba_timer_tag_t **)ecalloc(1, sizeof(pinba_timer_tag_t *));
+	for (i = 0; i < 2; i++) {
+		if (function_names[i]) {
+			function_name_len[i] = strlen(function_names[i]);
+			lc_function_names[i] = estrndup(function_names[i], function_name_len[i]);
+			zend_str_tolower(lc_function_names[i], function_name_len[i]);
+		} else {
+			lc_function_names[i] = estrdup("");
+			function_name_len[i] = 0;
+		}
+	}
+
+	if (zend_hash_exists(&PINBA_G(ignore_funcs_hash), lc_function_names[0], function_name_len[0] + 1) != 0) {
+		/* ignored function */
+		for (i = 0; i < 2; i++) {
+			if (function_names[i]) {
+				efree(function_names[i]);
+			}
+			efree(lc_function_names[i]);
+		}
+		return -1;
+	}
+
+	for (i = 0; i < 2; i++) {
+		if (function_names[i]) {
+			efree(function_names[i]);
+		}
+	}
+
+	tags = (pinba_timer_tag_t **)ecalloc(2, sizeof(pinba_timer_tag_t *));
 	tags[0] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
 	tags[0]->name = estrndup("function", sizeof("function") - 1);
 	tags[0]->name_len = sizeof("function") - 1;
-	tags[0]->value = lc_function_name;
-	tags[0]->value_len = function_name_len;
+	tags[0]->value = lc_function_names[0];
+	tags[0]->value_len = function_name_len[0];
 
-	t = php_pinba_timer_ctor(tags, 1 TSRMLS_CC);
+	tags[1] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
+	tags[1]->name = estrndup("prev_function", sizeof("prev_function") - 1);
+	tags[1]->name_len = sizeof("prev_function") - 1;
+	tags[1]->value = lc_function_names[1];
+	tags[1]->value_len = function_name_len[1];
+
+	t = php_pinba_timer_ctor(tags, 2 TSRMLS_CC);
 
 	t->started = 1;
 	t->hit_count = 1;
@@ -1096,7 +1078,7 @@ void pinba_execute(zend_op_array *op_array TSRMLS_DC) /* {{{ */
 		pinba_old_execute(op_array TSRMLS_CC);
 	} else {
 		int rsrc_id;
-		rsrc_id = pinba_start_autotimer(op_array TSRMLS_CC);
+		rsrc_id = pinba_start_autotimer(NULL TSRMLS_CC);
 		pinba_old_execute(op_array TSRMLS_CC);
 		pinba_stop_autotimer(rsrc_id TSRMLS_CC);
 	}
@@ -1117,7 +1099,7 @@ void pinba_execute_internal(zend_execute_data *current_execute_data, int return_
 		}
 	} else {
 		int rsrc_id;
-		rsrc_id = pinba_start_autotimer(NULL TSRMLS_CC);
+		rsrc_id = pinba_start_autotimer(current_execute_data TSRMLS_CC);
 		if (pinba_old_execute_internal) {
 			pinba_old_execute_internal(current_execute_data, return_value_used TSRMLS_CC);
 		} else {
@@ -1935,14 +1917,14 @@ static PHP_RINIT_FUNCTION(pinba)
  */
 static PHP_RSHUTDOWN_FUNCTION(pinba)
 {
+	php_pinba_flush_data(NULL, PINBA_FLUSH_ONLY_STOPPED_TIMERS TSRMLS_CC);
+
 	return SUCCESS;
 }
 /* }}} */
 
 static ZEND_MODULE_POST_ZEND_DEACTIVATE_D(pinba) /* {{{ */
 {
-	php_pinba_flush_data(NULL, PINBA_FLUSH_ONLY_STOPPED_TIMERS TSRMLS_CC);
-
 	zend_hash_destroy(&PINBA_G(timers));
 
 #if PHP_VERSION_ID < 50400
