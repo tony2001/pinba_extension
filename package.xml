@@ -14,20 +14,18 @@ http://pear.php.net/dtd/package-2.0.xsd">
   <email>tony2001@php.net</email>
   <active>yes</active>
  </lead>
- <date>2012-08-17</date>
+ <date>2013-08-17</date>
  <time>12:00:00</time>
  <version>
-  <release>1.0.0</release>
-  <api>1.0.0</api>
+  <release>1.1.0</release>
+  <api>1.1.0</api>
  </version>
  <stability>
   <release>stable</release>
   <api>stable</api>
  </stability>
- <license uri="http://www.php.net/license">PHP</license>
- <notes>- Fixed 5_4 build.
-- Fixed several minor memleaks.
-- Added optional flag to pinba_flush() to flush only stopped timers (use PINBA_FLUSH_ONLY_STOPPED_TIMERS).
+ <license>LGPL</license>
+ <notes>- Changed extension license to LGPL.
  </notes>
  <contents>
   <dir name="/">
@@ -57,6 +55,16 @@ http://pear.php.net/dtd/package-2.0.xsd">
   <configureoption default="autodetect" name="with-pinba" prompt="Please provide the prefix of Google Protocol Buffers installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+  <date>2012-08-17</date>
+  <version><release>1.0.0</release><api>1.0.0</api></version>
+  <stability><release>stable</release><api>stable</api></stability>
+  <license uri="http://www.php.net/license">PHP</license>
+  <notes>- Fixed 5_4 build.
+- Fixed several minor memleaks.
+- Added optional flag to pinba_flush() to flush only stopped timers (use PINBA_FLUSH_ONLY_STOPPED_TIMERS).
+ </notes>
+  </release>
   <release>
    <date>2010-11-26</date>
    <version><release>0.0.6</release><api>0.0.6</api></version>
