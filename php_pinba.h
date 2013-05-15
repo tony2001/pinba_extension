@@ -57,6 +57,7 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	char *server_name;
 	char *script_name;
 	HashTable timers;
+	HashTable tags;
 	pinba_req_data tmp_req_data;
 	zend_bool timers_stopped;
 	zend_bool in_rshutdown;
