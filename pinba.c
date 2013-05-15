@@ -1260,12 +1260,13 @@ static PHP_FUNCTION(pinba_flush)
    Get request info */
 static PHP_FUNCTION(pinba_get_info)
 {
-	zval *timers, *timer_info;
+	zval *timers, *timer_info, *tags;
 	struct timeval tmp;
 	struct rusage u;
 	HashPosition pos;
 	zend_rsrc_list_entry *le;
 	pinba_timer_t *t;
+	char **tag_value;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "") != SUCCESS) {
 		return;
@@ -1332,6 +1333,24 @@ static PHP_FUNCTION(pinba_get_info)
 		}
 	}
 	add_assoc_zval_ex(return_value, "timers", sizeof("timers"), timers);
+
+	MAKE_STD_ZVAL(tags);
+	array_init(tags);
+
+	for (zend_hash_internal_pointer_reset_ex(&PINBA_G(tags), &pos);
+			zend_hash_get_current_data_ex(&PINBA_G(tags), (void **) &tag_value, &pos) == SUCCESS;
+			zend_hash_move_forward_ex(&PINBA_G(tags), &pos)) {
+		char *key;
+		uint key_len;
+		ulong dummy;
+
+		if (zend_hash_get_current_key_ex(&PINBA_G(tags), &key, &key_len, &dummy, 0, &pos) == HASH_KEY_IS_STRING) {
+			add_assoc_string(tags, key, *tag_value, 1);
+		} else {
+			continue;
+		}
+	}
+	add_assoc_zval_ex(return_value, "tags", sizeof("tags"), tags);
 }
 /* }}} */
 
