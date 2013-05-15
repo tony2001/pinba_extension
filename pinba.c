@@ -103,6 +103,12 @@ typedef struct _pinba_timer { /* {{{ */
 
 #define timeval_cvt(a, b) do { (a)->tv_sec = (b)->tv_sec; (a)->tv_usec = (b)->tv_usec; } while (0);
 #define timeval_to_float(t) (float)(t).tv_sec + (float)(t).tv_usec / 1000000.0
+#define float_to_timeval(f, t)										\
+	do {															\
+		(t).tv_sec = (int)(f);										\
+		(t).tv_usec = (int)((f - (double)(t).tv_sec) * 1000000.0);	\
+	} while(0);
+
 static int php_pinba_key_compare(const void *a, const void *b TSRMLS_DC);
 
 /* {{{ internal funcs */
@@ -645,9 +651,14 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 		return;
 	}
 
-	/* compute how many time the request took */
-	if (gettimeofday(&req_finish, 0) == 0) {
-		timersub(&req_finish, &(PINBA_G(tmp_req_data).req_start), &req_data.req_time);
+	if (PINBA_G(request_time) > 0) {
+		/* use custom request time */
+		float_to_timeval(PINBA_G(request_time), req_data.req_time);
+	} else {
+		/* compute how many time the request took */
+		if (gettimeofday(&req_finish, 0) == 0) {
+			timersub(&req_finish, &(PINBA_G(tmp_req_data).req_start), &req_data.req_time);
+		}
 	}
 
 	/* get rusage */
@@ -1282,11 +1293,16 @@ static PHP_FUNCTION(pinba_get_info)
 	add_assoc_long_ex(return_value, "mem_peak_usage", sizeof("mem_peak_usage"), 0);
 #endif
 
-	if (gettimeofday(&tmp, 0) == 0) {
-		timersub(&tmp, &(PINBA_G(tmp_req_data).req_start), &tmp);
-		add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), timeval_to_float(tmp));
+	if (PINBA_G(request_time) > 0) {
+		/* use custom request time */
+		add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), PINBA_G(request_time));
 	} else {
-		add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), 0);
+		if (gettimeofday(&tmp, 0) == 0) {
+			timersub(&tmp, &(PINBA_G(tmp_req_data).req_start), &tmp);
+			add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), timeval_to_float(tmp));
+		} else {
+			add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), 0);
+		}
 	}
 
 	if (getrusage(RUSAGE_SELF, &u) == 0) {
@@ -1468,6 +1484,21 @@ static PHP_FUNCTION(pinba_hostname_set)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_request_time_set(float time)
+   Set custom request time */
+static PHP_FUNCTION(pinba_request_time_set)
+{
+	double time;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "d", &time) != SUCCESS) {
+		return;
+	}
+
+	PINBA_G(request_time) = time;
+	RETURN_TRUE;
+}
+/* }}} */
+
 /* {{{ proto bool pinba_tag_set(string tag, string value)
    Set request tag */
 static PHP_FUNCTION(pinba_tag_set)
@@ -1574,6 +1605,7 @@ zend_function_entry pinba_functions[] = {
 	PHP_FE(pinba_timers_get, NULL)
 	PHP_FE(pinba_script_name_set, NULL)
 	PHP_FE(pinba_hostname_set, NULL)
+	PHP_FE(pinba_request_time_set, NULL)
 	PHP_FE(pinba_tag_set, NULL)
 	PHP_FE(pinba_tag_get, NULL)
 	PHP_FE(pinba_tag_delete, NULL)
