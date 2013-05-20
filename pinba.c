@@ -1551,6 +1551,8 @@ static PHP_FUNCTION(pinba_get_info)
 		add_assoc_string_ex(return_value, "script_name", sizeof("script_name"), (char *)"unknown", 1);
 	}
 
+	add_assoc_string(return_value, "hostname", PINBA_G(host_name), 1);
+
 	MAKE_STD_ZVAL(timers);
 	array_init(timers);
 
