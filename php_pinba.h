@@ -54,6 +54,7 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	char *server_port;
 	int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
 	char host_name[128];
+	char schema[17];
 	char *server_name;
 	char *script_name;
 	double request_time;

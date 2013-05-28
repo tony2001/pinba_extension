@@ -28,4 +28,3 @@ Makefile
 *.lo
 *.o
 *.la
-pinba-pb.*

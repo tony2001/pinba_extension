@@ -481,6 +481,9 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 	request->has_status = 1;
 	request->memory_footprint = record.memory_footprint;
 	request->has_memory_footprint = 1;
+	if (PINBA_G(schema)[0] != '\0') {
+		request->schema = strdup(PINBA_G(schema));
+	}
 
 	n = zend_hash_num_elements(&dict);
 
@@ -1486,6 +1489,28 @@ static PHP_FUNCTION(pinba_hostname_set)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_schema_set(string custom_schema)
+   Set custom schema */
+static PHP_FUNCTION(pinba_schema_set)
+{
+	char *schema;
+	int schema_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &schema, &schema_len) != SUCCESS) {
+		return;
+	}
+
+	if (schema_len < sizeof(PINBA_G(schema))) {
+		memcpy(PINBA_G(schema), schema, schema_len);
+		PINBA_G(schema)[schema_len] = '\0';
+	} else {
+		memcpy(PINBA_G(schema), schema, sizeof(PINBA_G(schema)) - 1);
+		PINBA_G(schema)[sizeof(PINBA_G(schema))] = '\0';
+	}
+	RETURN_TRUE;
+}
+/* }}} */
+
 /* {{{ proto bool pinba_request_time_set(float time)
    Set custom request time */
 static PHP_FUNCTION(pinba_request_time_set)
@@ -1607,6 +1632,7 @@ zend_function_entry pinba_functions[] = {
 	PHP_FE(pinba_timers_get, NULL)
 	PHP_FE(pinba_script_name_set, NULL)
 	PHP_FE(pinba_hostname_set, NULL)
+	PHP_FE(pinba_schema_set, NULL)
 	PHP_FE(pinba_request_time_set, NULL)
 	PHP_FE(pinba_tag_set, NULL)
 	PHP_FE(pinba_tag_get, NULL)
