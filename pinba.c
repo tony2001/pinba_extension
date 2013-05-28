@@ -1789,6 +1789,7 @@ static PHP_RINIT_FUNCTION(pinba)
 
 	PINBA_G(timers_stopped) = 0;
 	PINBA_G(in_rshutdown) = 0;
+	PINBA_G(request_time) = 0;
 
 	if (gettimeofday(&t, 0) == 0) {
 		timeval_cvt(&(PINBA_G(tmp_req_data).req_start), &t);
