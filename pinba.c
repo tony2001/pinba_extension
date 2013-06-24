@@ -1511,6 +1511,26 @@ static PHP_FUNCTION(pinba_schema_set)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_server_name_set(string custom_server_name)
+   Set custom server name */
+static PHP_FUNCTION(pinba_server_name_set)
+{
+	char *server_name;
+	int server_name_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &server_name, &server_name_len) != SUCCESS) {
+		return;
+	}
+
+	if (PINBA_G(server_name)) {
+		efree(PINBA_G(server_name));
+	}
+
+	PINBA_G(server_name) = estrndup(server_name, server_name_len);
+	RETURN_TRUE;
+}
+/* }}} */
+
 /* {{{ proto bool pinba_request_time_set(float time)
    Set custom request time */
 static PHP_FUNCTION(pinba_request_time_set)
@@ -1632,6 +1652,7 @@ zend_function_entry pinba_functions[] = {
 	PHP_FE(pinba_timers_get, NULL)
 	PHP_FE(pinba_script_name_set, NULL)
 	PHP_FE(pinba_hostname_set, NULL)
+	PHP_FE(pinba_server_name_set, NULL)
 	PHP_FE(pinba_schema_set, NULL)
 	PHP_FE(pinba_request_time_set, NULL)
 	PHP_FE(pinba_tag_set, NULL)
