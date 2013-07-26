@@ -109,6 +109,18 @@ typedef struct _pinba_timer { /* {{{ */
 		(t).tv_usec = (int)((f - (double)(t).tv_sec) * 1000000.0);	\
 	} while(0);
 
+#ifndef timersub
+# define timersub(a, b, result)										\
+	do {															\
+		(result)->tv_sec = (a)->tv_sec - (b)->tv_sec;				\
+		(result)->tv_usec = (a)->tv_usec - (b)->tv_usec;			\
+		if ((result)->tv_usec < 0) {								\
+			--(result)->tv_sec;										\
+			(result)->tv_usec += 1000000;							\
+		}															\
+	} while (0)
+#endif
+
 static int php_pinba_key_compare(const void *a, const void *b TSRMLS_DC);
 
 /* {{{ internal funcs */
