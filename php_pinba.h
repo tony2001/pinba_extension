@@ -64,6 +64,7 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	zend_bool timers_stopped;
 	zend_bool in_rshutdown;
 	zend_bool enabled;
+	zend_bool auto_flush;
 ZEND_END_MODULE_GLOBALS(pinba)
 /* }}} */
 

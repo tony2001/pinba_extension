@@ -1773,6 +1773,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("pinba.server", NULL, PHP_INI_ALL, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
+    STD_PHP_INI_ENTRY("pinba.auto_flush", "1", PHP_INI_ALL, OnUpdateBool, auto_flush, zend_pinba_globals, pinba_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -1890,7 +1891,9 @@ static PHP_RINIT_FUNCTION(pinba)
  */
 static PHP_RSHUTDOWN_FUNCTION(pinba)
 {
-	php_pinba_flush_data(NULL, 0 TSRMLS_CC);
+	if (PINBA_G(auto_flush)) {
+		php_pinba_flush_data(NULL, 0 TSRMLS_CC);
+	}
 
 	zend_hash_destroy(&PINBA_G(timers));
 	zend_hash_destroy(&PINBA_G(tags));
