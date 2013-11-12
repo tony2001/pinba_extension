@@ -7,6 +7,7 @@ Pinba 1.1.0      ?? ??? ????
 - Added pinba_timers_get() function.
 - Added pinba_schema_set() function.
 - Added error message on hostname resolution failure.
+- Added rusage to timers (it was actually there, but wasn't sent to the server).
 - Fixed issue #9 (php segfault on shutdown)
 
 Pinba 1.0.0      17 Aug 2012

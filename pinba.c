@@ -557,11 +557,13 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 		n = zend_hash_num_elements(&timers_uniq);
 		request->timer_hit_count = malloc(sizeof(unsigned int) * n);
 		request->timer_tag_count = malloc(sizeof(unsigned int) * n);
+		request->timer_ru_stime = malloc(sizeof(float) * n);
+		request->timer_ru_utime = malloc(sizeof(float) * n);
 		request->timer_tag_name = NULL;
 		request->timer_tag_value = NULL;
 		request->timer_value = malloc(sizeof(float) * n);
 
-		if (!request->timer_hit_count || !request->timer_tag_count || !request->timer_value) {
+		if (!request->timer_hit_count || !request->timer_tag_count || !request->timer_value || !request->timer_ru_stime || !request->timer_ru_utime) {
 			pinba__request__free_unpacked(request, NULL);
 			return FAILURE;
 		}
@@ -592,10 +594,14 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 			request->timer_tag_count[n] = i;
 			request->timer_hit_count[n] = t->hit_count;
 			request->timer_value[n] = timeval_to_float(t->value);
+			request->timer_ru_utime[n] = timeval_to_float(t->ru_utime);
+			request->timer_ru_stime[n] = timeval_to_float(t->ru_stime);
 			n++;
 		}
 		request->n_timer_tag_count = n;
 		request->n_timer_hit_count = n;
+		request->n_timer_ru_utime = n;
+		request->n_timer_ru_stime = n;
 		request->n_timer_value = n;
 		zend_hash_destroy(&timers_uniq);
 	}
