@@ -607,7 +607,6 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 	}
 
 	if (ret == SUCCESS) {
-		size_t total_sent = 0;
 		ssize_t sent;
 		unsigned char pad[256];
 		ProtobufCBufferSimple buf = PROTOBUF_C_BUFFER_SIMPLE_INIT (pad);
@@ -615,16 +614,10 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 
 		pinba__request__pack_to_buffer(request, buffer);
 
-		while (total_sent < buf.len) {
-			int flags = 0;
-
-			sent = sendto(pinba_socket, buf.data + total_sent, buf.len - total_sent, flags,
-					(struct sockaddr *) &PINBA_G(collector_sockaddr), PINBA_G(collector_sockaddr_len));
-			if (sent < 0) {
-				ret = FAILURE;
-				break;
-			}
-			total_sent += sent;
+		sent = sendto(pinba_socket, buf.data, buf.len, 0, (struct sockaddr *) &PINBA_G(collector_sockaddr), PINBA_G(collector_sockaddr_len));
+		if (sent < buf.len) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to send data to Pinba server: %s", strerror(errno));
+			ret = FAILURE;
 		}
 	} else {
 		ret = FAILURE;
