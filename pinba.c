@@ -1880,12 +1880,16 @@ static PHP_RINIT_FUNCTION(pinba)
 	}
 
 #if PHP_VERSION_ID < 50400
-	PINBA_G(old_sapi_ub_write) = OG(php_header_write);
-	OG(php_header_write) = sapi_ub_write_counter;
+	if (OG(php_header_write) != sapi_ub_write_counter) {
+		PINBA_G(old_sapi_ub_write) = OG(php_header_write);
+		OG(php_header_write) = sapi_ub_write_counter;
+	}
 #else
-	/* new output API */
-	PINBA_G(old_sapi_ub_write) = sapi_module.ub_write;
-	sapi_module.ub_write = sapi_ub_write_counter;
+	if (sapi_module.ub_write != sapi_ub_write_counter) {
+		/* new output API */
+		PINBA_G(old_sapi_ub_write) = sapi_module.ub_write;
+		sapi_module.ub_write = sapi_ub_write_counter;
+	}
 #endif
 
 	return SUCCESS;
