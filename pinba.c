@@ -929,7 +929,7 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info TSRMLS_DC) /* 
 
 /* }}} */
 
-/* {{{ proto resource pinba_timer_start(array tags[, array data])
+/* {{{ proto resource pinba_timer_start(array tags[[, array data], int hit_count])
    Start user timer */
 static PHP_FUNCTION(pinba_timer_start)
 {
@@ -937,6 +937,7 @@ static PHP_FUNCTION(pinba_timer_start)
 	pinba_timer_t *t = NULL;
 	pinba_timer_tag_t **tags;
 	int tags_num;
+	long hit_count = 1;
 	struct rusage u;
 
 	if (PINBA_G(timers_stopped)) {
@@ -944,7 +945,7 @@ static PHP_FUNCTION(pinba_timer_start)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a|a", &tags_array, &data) != SUCCESS) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a|al", &tags_array, &data, &hit_count) != SUCCESS) {
 		return;
 	}
 
@@ -955,13 +956,18 @@ static PHP_FUNCTION(pinba_timer_start)
 		RETURN_FALSE;
 	}
 
+	if (hit_count <= 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "hit_count must be greater than 0 (%ld was passed)", hit_count);
+		RETURN_FALSE;
+	}
+
 	if (php_pinba_array_to_tags(tags_array, &tags TSRMLS_CC) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
 	t = php_pinba_timer_ctor(tags, tags_num TSRMLS_CC);
 
-	if (data) {
+	if (data && zend_hash_num_elements(Z_ARRVAL_P(data)) > 0) {
 		MAKE_STD_ZVAL(t->data);
 		*(t->data) = *data;
 		zval_copy_ctor(t->data);
@@ -969,7 +975,7 @@ static PHP_FUNCTION(pinba_timer_start)
 	}
 
 	t->started = 1;
-	t->hit_count = 1;
+	t->hit_count = hit_count;
 
 #if PHP_VERSION_ID >= 50400
 	t->rsrc_id = zend_list_insert(t, le_pinba_timer TSRMLS_CC);
