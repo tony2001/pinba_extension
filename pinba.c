@@ -54,6 +54,7 @@ ZEND_GET_MODULE(pinba)
 
 static int le_pinba_timer;
 static int pinba_socket = -1;
+int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
 
 #if ZEND_MODULE_API_NO > 20020429
 #define ONUPDATELONGFUNC OnUpdateLong
@@ -299,7 +300,11 @@ static int php_pinba_timer_stop_helper(zend_rsrc_list_entry *le, void *arg TSRML
 static int sapi_ub_write_counter(const char *str, unsigned int length TSRMLS_DC) /* {{{ */
 {
 	PINBA_G(tmp_req_data).doc_size += length;
+#if PHP_VERSION_ID < 50400
 	return PINBA_G(old_sapi_ub_write)(str, length TSRMLS_CC);
+#else
+	return old_sapi_ub_write(str, length TSRMLS_CC);
+#endif
 }
 /* }}} */
 
@@ -1807,6 +1812,9 @@ static PHP_MINIT_FUNCTION(pinba)
 	REGISTER_LONG_CONSTANT("PINBA_FLUSH_RESET_DATA", PINBA_FLUSH_RESET_DATA, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("PINBA_ONLY_STOPPED_TIMERS", PINBA_FLUSH_ONLY_STOPPED_TIMERS, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("PINBA_ONLY_RUNNING_TIMERS", PINBA_ONLY_RUNNING_TIMERS, CONST_CS | CONST_PERSISTENT);
+
+	old_sapi_ub_write = sapi_module.ub_write;
+	sapi_module.ub_write = sapi_ub_write_counter;
 	return SUCCESS;
 }
 /* }}} */
@@ -1884,12 +1892,6 @@ static PHP_RINIT_FUNCTION(pinba)
 		PINBA_G(old_sapi_ub_write) = OG(php_header_write);
 		OG(php_header_write) = sapi_ub_write_counter;
 	}
-#else
-	if (sapi_module.ub_write != sapi_ub_write_counter) {
-		/* new output API */
-		PINBA_G(old_sapi_ub_write) = sapi_module.ub_write;
-		sapi_module.ub_write = sapi_ub_write_counter;
-	}
 #endif
 
 	return SUCCESS;
@@ -1909,8 +1911,6 @@ static PHP_RSHUTDOWN_FUNCTION(pinba)
 
 #if PHP_VERSION_ID < 50400
 	OG(php_header_write) = PINBA_G(old_sapi_ub_write);
-#else
-	sapi_module.ub_write = PINBA_G(old_sapi_ub_write);
 #endif
 
 	if (PINBA_G(server_name)) {

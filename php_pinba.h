@@ -52,7 +52,9 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	char *collector_address;
 	char *server_host;
 	char *server_port;
+#if PHP_VERSION_ID < 50400
 	int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
+#endif
 	char host_name[128];
 	char schema[17];
 	char *server_name;
