@@ -53,7 +53,6 @@ ZEND_GET_MODULE(pinba)
 #endif
 
 static int le_pinba_timer;
-static int pinba_socket = -1;
 int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
 
 #if ZEND_MODULE_API_NO > 20020429
@@ -137,6 +136,15 @@ typedef struct _pinba_timer { /* {{{ */
 static int php_pinba_key_compare(const void *a, const void *b TSRMLS_DC);
 
 /* {{{ internal funcs */
+
+static inline pinba_collector* php_pinba_collector_add()
+{
+	if (PINBA_G(n_collectors) >= PINBA_COLLECTORS_MAX) {
+		return NULL;
+	}
+
+	return &PINBA_G(collectors)[PINBA_G(n_collectors)++];
+}
 
 static inline int php_pinba_timer_stop(pinba_timer_t *t) /* {{{ */
 {
@@ -313,13 +321,63 @@ static int php_pinba_init_socket (TSRMLS_D) /* {{{ */
 	struct addrinfo *ai_list;
 	struct addrinfo *ai_ptr;
 	struct addrinfo  ai_hints;
+	int i;
 	int fd;
 	int status;
+	int n_fds;
 
-	if (PINBA_G(server_host) == NULL || PINBA_G(server_port) == NULL) {
+	if (PINBA_G(n_collectors) == 0) {
 		return -1;
 	}
 
+	n_fds = 0;
+	for (i = 0; i < PINBA_G(n_collectors); i++) {
+		pinba_collector *collector = &PINBA_G(collectors)[i];
+
+		memset(&ai_hints, 0, sizeof(ai_hints));
+		ai_hints.ai_flags     = 0;
+#ifdef AI_ADDRCONFIG
+		ai_hints.ai_flags    |= AI_ADDRCONFIG;
+#endif
+		ai_hints.ai_family    = AF_UNSPEC;
+		ai_hints.ai_socktype  = SOCK_DGRAM;
+		ai_hints.ai_addr      = NULL;
+		ai_hints.ai_canonname = NULL;
+		ai_hints.ai_next      = NULL;
+
+		ai_list = NULL;
+		status = getaddrinfo(collector->host, collector->port, &ai_hints, &ai_list);
+		if (status != 0) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", collector->host, gai_strerror(status));
+			continue; /* skip this one in case any others are good */
+		}
+
+		for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
+			fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
+			if (fd >= 0) {
+				break;
+			}
+		}
+
+		if (fd < 0) {
+			continue;
+		}
+
+		if (collector->fd >= 0) {
+			close(collector->fd);
+		}
+
+		collector->fd = fd;
+		memcpy(&collector->sockaddr, ai_ptr->ai_addr, ai_ptr->ai_addrlen);
+		collector->sockaddr_len = ai_ptr->ai_addrlen;
+
+		freeaddrinfo(ai_list);
+
+		n_fds++;
+	}
+
+	return (n_fds > 0) ? 0 : -1;
+#if 0
 	memset(&ai_hints, 0, sizeof(ai_hints));
 	ai_hints.ai_flags     = 0;
 #ifdef AI_ADDRCONFIG
@@ -359,6 +417,7 @@ static int php_pinba_init_socket (TSRMLS_D) /* {{{ */
 	freeaddrinfo(ai_list);
 
 	return ((fd >= 0) ? 0 : -1);
+#endif
 } /* }}} */
 
 static inline int php_pinba_dict_find_or_add(HashTable *ht, char *word, int word_len) /* {{{ */
@@ -389,10 +448,14 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 	int *tag_ids, *tag_value_ids;
 	int i, n, *id;
 
+	/* XXX: we're supposed to have at least one pinba_collector[]->fd initialized when this function is called */
+
+#if 0
 	/* no socket -> bail out */
 	if (pinba_socket < 0) {
 		return FAILURE;
 	}
+#endif
 
 	zend_hash_init(&dict, 10, NULL, NULL, 0);
 	tags_cnt = zend_hash_num_elements(&PINBA_G(tags));
@@ -619,11 +682,20 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 
 		pinba__request__pack_to_buffer(request, buffer);
 
-		sent = sendto(pinba_socket, buf.data, buf.len, 0, (struct sockaddr *) &PINBA_G(collector_sockaddr), PINBA_G(collector_sockaddr_len));
-		if (sent < buf.len) {
-			php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to send data to Pinba server: %s", strerror(errno));
-			ret = FAILURE;
+		for (i = 0; i < PINBA_G(n_collectors); i++) {
+			pinba_collector *collector = &PINBA_G(collectors)[i];
+
+			if (collector->fd < 0) {
+				continue;
+			}
+
+			sent += sendto(collector->fd, buf.data, buf.len, 0, (struct sockaddr *) &collector->sockaddr, collector->sockaddr_len);
+			if (sent < buf.len) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to send data to Pinba server: %s", strerror(errno));
+				ret = FAILURE;
+			}
 		}
+
 	} else {
 		ret = FAILURE;
 	}
@@ -1758,19 +1830,16 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		new_node = copy;
 	}
 
-	if (PINBA_G(server_host)) {
-		free(PINBA_G(server_host));
+	pinba_collector *new_collector = php_pinba_collector_add();
+	if (new_collector == NULL) {
+		/* TODO: log that max collectors has been reached and recompilation is required (will never happen) */
+		free(copy);
+		return FAILURE;
 	}
-	if (PINBA_G(server_port)) {
-		free(PINBA_G(server_port));
-	}
+	new_collector->host = strdup(new_node);
+	new_collector->port = (new_service == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(new_service);
+	new_collector->fd = -1; /* set invalid fd */
 
-	PINBA_G(server_host) = strdup(new_node);
-	if (new_service == NULL) {
-		PINBA_G(server_port) = strdup(PINBA_COLLECTOR_DEFAULT_PORT);
-	} else {
-		PINBA_G(server_port) = strdup(new_service);
-	}
 	free(copy);
 
 	/* Sets "collector_address", I assume */
@@ -1825,11 +1894,18 @@ static PHP_MINIT_FUNCTION(pinba)
  */
 static PHP_MSHUTDOWN_FUNCTION(pinba)
 {
+	int i;
+
 	UNREGISTER_INI_ENTRIES();
 
-	if (pinba_socket > 0) {
-		close(pinba_socket);
+	for (i = 0; i < PINBA_G(n_collectors); i++) {
+		pinba_collector *collector = &PINBA_G(collectors)[i];
+
+		if (collector->fd >= 0) {
+			close(collector->fd);
+		}
 	}
+
 	if (PINBA_G(server_host)) {
 		free(PINBA_G(server_host));
 	}

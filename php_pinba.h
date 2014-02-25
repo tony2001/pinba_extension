@@ -30,6 +30,7 @@ extern zend_module_entry pinba_module_entry;
 #endif
 
 #define PINBA_COLLECTOR_DEFAULT_PORT "30002"
+#define PINBA_COLLECTORS_MAX 8
 #define PHP_PINBA_VERSION "1.1.0-dev"
 
 typedef struct _pinba_req_data { /* {{{ */
@@ -46,10 +47,19 @@ typedef struct _pinba_req_data { /* {{{ */
 } pinba_req_data;
 /* }}} */
 
+typedef struct _pinba_collector {
+	struct sockaddr_storage sockaddr;
+	size_t                  sockaddr_len; /* shouldn't this be socken_t ? */
+	char *host;
+	char *port;
+	int fd;
+} pinba_collector;
+
 ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
-	struct sockaddr_storage collector_sockaddr;
-	size_t collector_sockaddr_len;
-	char *collector_address;
+	pinba_collector collectors[PINBA_COLLECTORS_MAX];
+	unsigned int n_collectors; /* number of collectors we got from ini file */
+	char *collector_address; /* this is a lil broken, contains last address only */
+	/* FIXME: remove these next two */
 	char *server_host;
 	char *server_port;
 #if PHP_VERSION_ID < 50400
