@@ -60,8 +60,8 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	unsigned int n_collectors; /* number of collectors we got from ini file */
 	char *collector_address; /* this is a lil broken, contains last address only */
 	/* FIXME: remove these next two */
-	char *server_host;
-	char *server_port;
+//	char *server_host;
+//	char *server_port;
 #if PHP_VERSION_ID < 50400
 	int (*old_sapi_ub_write) (const char *, unsigned int TSRMLS_DC);
 #endif

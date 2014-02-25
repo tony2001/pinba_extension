@@ -693,8 +693,8 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 	/* prevent any further access to the timers */
 	PINBA_G(timers_stopped) = 1;
 
-	if (!PINBA_G(enabled) || !PINBA_G(server_host) || !PINBA_G(server_port)) {
-		/* no server host/port set, exit */
+	if (!PINBA_G(enabled) || PINBA_G(n_collectors) == 0) {
+		/* disabled or no collectors defined, exit */
 		zend_hash_clean(&PINBA_G(timers));
 		PINBA_G(timers_stopped) = 0;
 		return;
@@ -1856,14 +1856,16 @@ static PHP_MSHUTDOWN_FUNCTION(pinba)
 		if (collector->fd >= 0) {
 			close(collector->fd);
 		}
+
+		if (collector->host) {
+			free(collector->host);
+		}
+
+		if (collector->port) {
+			free(collector->port);
+		}
 	}
 
-	if (PINBA_G(server_host)) {
-		free(PINBA_G(server_host));
-	}
-	if (PINBA_G(server_port)) {
-		free(PINBA_G(server_port));
-	}
 	return SUCCESS;
 }
 /* }}} */
