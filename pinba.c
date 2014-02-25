@@ -642,7 +642,7 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 				continue;
 			}
 
-			sent += sendto(collector->fd, buf.data, buf.len, 0, (struct sockaddr *) &collector->sockaddr, collector->sockaddr_len);
+			sent = sendto(collector->fd, buf.data, buf.len, 0, (struct sockaddr *) &collector->sockaddr, collector->sockaddr_len);
 			if (sent < buf.len) {
 				php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to send data to Pinba server: %s", strerror(errno));
 				ret = FAILURE;
@@ -1724,7 +1724,8 @@ zend_function_entry pinba_functions[] = {
 
 static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 {
-	char *copy;
+	char *copy; /* copy of the passed value, so that we can mangle it at will */
+	char *address; /* address, split off the space separated string */
 	char *new_node;
 	char *new_service;
 
@@ -1737,61 +1738,66 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		return FAILURE;
 	}
 
-	new_node = NULL;
-	new_service = NULL;
+	for (char *tmp = copy; address = strsep(&tmp, ", "); /**/) {
+		new_node = NULL;
+		new_service = NULL;
 
-	/* '[' <node> ']' [':' <service>] */
-	if (copy[0] == '[') {
-		char *endptr;
-
-		new_node = copy + 1;
-
-		endptr = strchr(new_node, ']');
-		if (endptr == NULL) {
-			free(copy);
-			return FAILURE;
+		if (address[0] == 0) { /* empty string, just skip */
+			continue;
 		}
-		*endptr = 0;
-		endptr++;
+		/* '[' <node> ']' [':' <service>] */
+		else if (address[0] == '[') {
+			char *endptr;
 
-		if (*endptr != ':' && *endptr != 0) {
-			free(copy);
-			return FAILURE;
-		}
+			new_node = address + 1;
 
-		if (*endptr != 0) {
-			new_service = endptr + 1;
-		}
-
-		if (new_service != NULL && *new_service == 0) {
-			new_service = NULL;
-		}
-	}
-	/* <ipv4 node> [':' <service>] */
-	else if ((strchr(copy, ':') == NULL) /* no colon */
-			|| (strchr(copy, ':') == strrchr(copy, ':'))) { /* exactly one colon */
-		char *endptr = strchr(copy, ':');
-
-		if (endptr != NULL) {
+			endptr = strchr(new_node, ']');
+			if (endptr == NULL) {
+				free(copy);
+				return FAILURE;
+			}
 			*endptr = 0;
-			new_service = endptr + 1;
-		}
-		new_node = copy;
-	}
-	/* <ipv6 node> */
-	else { /* multiple colons */
-		new_node = copy;
-	}
+			endptr++;
 
-	pinba_collector *new_collector = php_pinba_collector_add();
-	if (new_collector == NULL) {
-		/* TODO: log that max collectors has been reached and recompilation is required (will never happen) */
-		free(copy);
-		return FAILURE;
+			if (*endptr != ':' && *endptr != 0) {
+				free(copy);
+				return FAILURE;
+			}
+
+			if (*endptr != 0) {
+				new_service = endptr + 1;
+			}
+
+			if (new_service != NULL && *new_service == 0) {
+				new_service = NULL;
+			}
+		}
+		/* <ipv4 node> [':' <service>] */
+		else if ((strchr(address, ':') == NULL) /* no colon */
+				|| (strchr(address, ':') == strrchr(address, ':'))) { /* exactly one colon */
+			char *endptr = strchr(address, ':');
+
+			if (endptr != NULL) {
+				*endptr = 0;
+				new_service = endptr + 1;
+			}
+			new_node = address;
+		}
+		/* <ipv6 node> */
+		else { /* multiple colons */
+			new_node = address;
+		}
+
+		pinba_collector *new_collector = php_pinba_collector_add();
+		if (new_collector == NULL) {
+			/* TODO: log that max collectors has been reached and recompilation is required (will never happen) */
+			free(copy);
+			return FAILURE;
+		}
+		new_collector->host = strdup(new_node);
+		new_collector->port = (new_service == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(new_service);
+		new_collector->fd = -1; /* set invalid fd */
 	}
-	new_collector->host = strdup(new_node);
-	new_collector->port = (new_service == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(new_service);
-	new_collector->fd = -1; /* set invalid fd */
 
 	free(copy);
 
