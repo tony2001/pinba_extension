@@ -377,47 +377,6 @@ static int php_pinba_init_socket (TSRMLS_D) /* {{{ */
 	}
 
 	return (n_fds > 0) ? 0 : -1;
-#if 0
-	memset(&ai_hints, 0, sizeof(ai_hints));
-	ai_hints.ai_flags     = 0;
-#ifdef AI_ADDRCONFIG
-	ai_hints.ai_flags    |= AI_ADDRCONFIG;
-#endif
-	ai_hints.ai_family    = AF_UNSPEC;
-	ai_hints.ai_socktype  = SOCK_DGRAM;
-	ai_hints.ai_addr      = NULL;
-	ai_hints.ai_canonname = NULL;
-	ai_hints.ai_next      = NULL;
-
-	ai_list = NULL;
-	status = getaddrinfo(PINBA_G(server_host), PINBA_G(server_port), &ai_hints, &ai_list);
-	if (status != 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", PINBA_G(server_host), gai_strerror(status));
-		return -1;
-	}
-
-	fd = -1;
-	for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
-		fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
-		if (fd < 0) {
-			continue;
-		}
-
-		if (pinba_socket >= 0) {
-			close(pinba_socket);
-		}
-
-		pinba_socket = fd;
-
-		memcpy(&PINBA_G(collector_sockaddr), ai_ptr->ai_addr, ai_ptr->ai_addrlen);
-		PINBA_G(collector_sockaddr_len) = ai_ptr->ai_addrlen;
-		break;
-	}
-
-	freeaddrinfo(ai_list);
-
-	return ((fd >= 0) ? 0 : -1);
-#endif
 } /* }}} */
 
 static inline int php_pinba_dict_find_or_add(HashTable *ht, char *word, int word_len) /* {{{ */
@@ -449,13 +408,6 @@ static inline int php_pinba_req_data_send(pinba_req_data record, long flags TSRM
 	int i, n, *id;
 
 	/* XXX: we're supposed to have at least one pinba_collector[]->fd initialized when this function is called */
-
-#if 0
-	/* no socket -> bail out */
-	if (pinba_socket < 0) {
-		return FAILURE;
-	}
-#endif
 
 	zend_hash_init(&dict, 10, NULL, NULL, 0);
 	tags_cnt = zend_hash_num_elements(&PINBA_G(tags));
