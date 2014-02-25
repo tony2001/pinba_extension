@@ -349,25 +349,26 @@ static int php_pinba_init_socket (TSRMLS_D) /* {{{ */
 		status = getaddrinfo(collector->host, collector->port, &ai_hints, &ai_list);
 		if (status != 0) {
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", collector->host, gai_strerror(status));
-			continue; /* skip this one in case any others are good */
+			fd = -1; /* need to put -1 into collector->fd */
 		}
-
-		for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
-			fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
-			if (fd >= 0) {
-				break;
+		else {
+			for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
+				fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
+				if (fd >= 0) {
+					break;
+				}
 			}
-		}
-
-		if (fd < 0) {
-			continue;
 		}
 
 		if (collector->fd >= 0) {
 			close(collector->fd);
 		}
-
 		collector->fd = fd;
+
+		if (fd < 0) {
+			continue; /* skip this one in case others are good */
+		}
+		
 		memcpy(&collector->sockaddr, ai_ptr->ai_addr, ai_ptr->ai_addrlen);
 		collector->sockaddr_len = ai_ptr->ai_addrlen;
 
