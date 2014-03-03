@@ -1722,6 +1722,30 @@ zend_function_entry pinba_functions[] = {
 };
 /* }}} */
 
+
+static inline void php_pinba_cleanup_collectors(TSRMLS_D) /* {{{ */
+{
+	int i;
+
+	for (i = 0; i < PINBA_G(n_collectors); i++) {
+		pinba_collector *collector = &PINBA_G(collectors)[i];
+
+		if (collector->fd >= 0) {
+			close(collector->fd);
+		}
+
+		if (collector->host) {
+			free(collector->host);
+		}
+
+		if (collector->port) {
+			free(collector->port);
+		}
+	}
+	PINBA_G(n_collectors) = 0;
+}
+/* }}} */
+
 static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 {
 	char *copy; /* copy of the passed value, so that we can mangle it at will */
@@ -1738,6 +1762,8 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 	if (copy == NULL) {
 		return FAILURE;
 	}
+
+	php_pinba_cleanup_collectors(TSRMLS_C);
 
 	for (tmp = copy; (address = strsep(&tmp, ", ")); /**/) {
 		new_node = NULL;
@@ -1858,21 +1884,7 @@ static PHP_MSHUTDOWN_FUNCTION(pinba)
 
 	UNREGISTER_INI_ENTRIES();
 
-	for (i = 0; i < PINBA_G(n_collectors); i++) {
-		pinba_collector *collector = &PINBA_G(collectors)[i];
-
-		if (collector->fd >= 0) {
-			close(collector->fd);
-		}
-
-		if (collector->host) {
-			free(collector->host);
-		}
-
-		if (collector->port) {
-			free(collector->port);
-		}
-	}
+	php_pinba_cleanup_collectors(TSRMLS_C);
 
 	return SUCCESS;
 }
