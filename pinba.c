@@ -1728,6 +1728,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 	char *address; /* address, split off the space separated string */
 	char *new_node;
 	char *new_service;
+	char *tmp;
 
 	if (new_value == NULL || new_value[0] == 0) {
 		return FAILURE;
@@ -1738,7 +1739,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		return FAILURE;
 	}
 
-	for (char *tmp = copy; address = strsep(&tmp, ", "); /**/) {
+	for (tmp = copy; (address = strsep(&tmp, ", ")); /**/) {
 		new_node = NULL;
 		new_service = NULL;
 
