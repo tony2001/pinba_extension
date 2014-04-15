@@ -1977,6 +1977,8 @@ static PHP_METHOD(PinbaClient, setTag)
 	}
 	client = (pinba_client_t *)zend_object_store_get_object(getThis() TSRMLS_CC);
 
+	/* store the copy */
+	value = estrndup(value, value_len);
 	zend_hash_update(&client->tags, tag, tag_len + 1, (void **)&value, sizeof(char *), NULL);
 	RETURN_TRUE;
 }
@@ -2052,6 +2054,7 @@ static PHP_METHOD(PinbaClient, setTimer)
 	float_to_timeval(ru_stime, timer->ru_stime);
 	timer->tags = new_tags;
 	timer->tags_num = tags_num;
+	timer->hit_count = hit_count;
 
 	zend_hash_update(&client->timers, hashed_tags, hashed_tags_len + 1, (void **)&timer, sizeof(pinba_timer_t *), NULL);
 	efree(hashed_tags);
