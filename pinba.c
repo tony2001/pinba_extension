@@ -1984,9 +1984,7 @@ static PHP_METHOD(PinbaClient, setTag)
 }
 /* }}} */
 
-/* {{{ proto PinbaClient::setTimer(array tags, float value[, array rusage[, int hit_count]])
-    */
-static PHP_METHOD(PinbaClient, setTimer)
+static void php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAMETERS, int add) /* {{{ */
 {
 	pinba_client_t *client;
 	long hit_count = 1;
@@ -2056,9 +2054,45 @@ static PHP_METHOD(PinbaClient, setTimer)
 	timer->tags_num = tags_num;
 	timer->hit_count = hit_count;
 
-	zend_hash_update(&client->timers, hashed_tags, hashed_tags_len + 1, (void **)&timer, sizeof(pinba_timer_t *), NULL);
+	if (add) {
+		pinba_timer_t *old_t, **old_t_pp;
+
+		if (zend_hash_find(&client->timers, hashed_tags, hashed_tags_len + 1, (void **)&old_t_pp) == SUCCESS) {
+			old_t = *old_t_pp;
+			timeradd(&old_t->value, &timer->value, &old_t->value);
+			timeradd(&old_t->ru_utime, &timer->ru_utime, &old_t->ru_utime);
+			timeradd(&old_t->ru_stime, &timer->ru_stime, &old_t->ru_stime);
+			if (timer->hit_count) {
+				old_t->hit_count += timer->hit_count;
+			} else {
+				old_t->hit_count++;
+			}
+			php_pinba_timer_dtor(timer);
+			efree(timer);
+		} else {
+			zend_hash_add(&client->timers, hashed_tags, hashed_tags_len + 1, (void **)&timer, sizeof(pinba_timer_t *), NULL);
+		}
+	} else {
+		zend_hash_update(&client->timers, hashed_tags, hashed_tags_len + 1, (void **)&timer, sizeof(pinba_timer_t *), NULL);
+	}
 	efree(hashed_tags);
 	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ proto PinbaClient::setTimer(array tags, float value[, array rusage[, int hit_count]])
+    */
+static PHP_METHOD(PinbaClient, setTimer)
+{
+	php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
+}
+/* }}} */
+
+/* {{{ proto PinbaClient::addTimer(array tags, float value[, array rusage[, int hit_count]])
+    */
+static PHP_METHOD(PinbaClient, addTimer)
+{
+	php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
 /* }}} */
 
@@ -2209,6 +2243,7 @@ zend_function_entry pinba_client_methods[] = {
 	PHP_ME(PinbaClient, setSchema, arginfo_setvalue, ZEND_ACC_PUBLIC)
 	PHP_ME(PinbaClient, setTag, arginfo_settag, ZEND_ACC_PUBLIC)
 	PHP_ME(PinbaClient, setTimer, arginfo_settimer, ZEND_ACC_PUBLIC)
+	PHP_ME(PinbaClient, addTimer, arginfo_settimer, ZEND_ACC_PUBLIC)
 	PHP_ME(PinbaClient, send, arginfo_send, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
