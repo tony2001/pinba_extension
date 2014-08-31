@@ -419,7 +419,7 @@ static int sapi_ub_write_counter(const char *str, unsigned int length TSRMLS_DC)
 }
 /* }}} */
 
-static int php_pinba_init_socket(pinba_collector *collectors, int n_collectors) /* {{{ */
+static int php_pinba_init_socket(pinba_collector *collectors, int n_collectors TSRMLS_DC) /* {{{ */
 {
 	struct addrinfo *ai_list;
 	struct addrinfo *ai_ptr;
@@ -803,7 +803,7 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags TSRM
 		return;
 	}
 
-	if (php_pinba_init_socket(PINBA_G(collectors), PINBA_G(n_collectors)) != SUCCESS) {
+	if (php_pinba_init_socket(PINBA_G(collectors), PINBA_G(n_collectors) TSRMLS_CC) != SUCCESS) {
 		PINBA_G(timers_stopped) = 0;
 		return;
 	}
@@ -2115,7 +2115,7 @@ static PHP_METHOD(PinbaClient, send)
 		RETURN_FALSE;
 	}
 
-	if (php_pinba_init_socket(client->collectors, client->n_collectors) != SUCCESS) {
+	if (php_pinba_init_socket(client->collectors, client->n_collectors TSRMLS_CC) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
