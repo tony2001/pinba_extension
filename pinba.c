@@ -137,7 +137,7 @@ static int php_pinba_key_compare(const void *a, const void *b TSRMLS_DC);
 
 /* {{{ internal funcs */
 
-static inline pinba_collector* php_pinba_collector_add()
+static inline pinba_collector* php_pinba_collector_add(TSRMLS_D)
 {
 	if (PINBA_G(n_collectors) >= PINBA_COLLECTORS_MAX) {
 		return NULL;
@@ -1753,6 +1753,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 	char *new_node;
 	char *new_service;
 	char *tmp;
+	pinba_collector *new_collector;
 
 	if (new_value == NULL || new_value[0] == 0) {
 		return FAILURE;
@@ -1815,7 +1816,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 			new_node = address;
 		}
 
-		pinba_collector *new_collector = php_pinba_collector_add();
+		new_collector = php_pinba_collector_add(TSRMLS_C);
 		if (new_collector == NULL) {
 			/* TODO: log that max collectors has been reached and recompilation is required (will never happen) */
 			free(copy);
