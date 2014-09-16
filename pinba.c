@@ -1881,12 +1881,9 @@ static PHP_MINIT_FUNCTION(pinba)
  */
 static PHP_MSHUTDOWN_FUNCTION(pinba)
 {
-	int i;
-
 	UNREGISTER_INI_ENTRIES();
 
 	php_pinba_cleanup_collectors(TSRMLS_C);
-
 	return SUCCESS;
 }
 /* }}} */
