@@ -1054,6 +1054,10 @@ static PHP_FUNCTION(pinba_timer_add)
 		RETURN_FALSE;
 	}
 
+	if (value < 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "negative time value passed (%f), changing it to 0", value);
+	}
+
 	t = php_pinba_timer_ctor(tags, tags_num TSRMLS_CC);
 
 	if (data) {
