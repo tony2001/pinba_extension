@@ -1056,6 +1056,7 @@ static PHP_FUNCTION(pinba_timer_add)
 
 	if (value < 0) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "negative time value passed (%f), changing it to 0", value);
+		value = 0;
 	}
 
 	t = php_pinba_timer_ctor(tags, tags_num TSRMLS_CC);
@@ -1602,6 +1603,11 @@ static PHP_FUNCTION(pinba_request_time_set)
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "d", &time) != SUCCESS) {
 		return;
+	}
+
+	if (time < 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "negative request time value passed (%f), changing it to 0", time);
+		time = 0;
 	}
 
 	PINBA_G(request_time) = time;
