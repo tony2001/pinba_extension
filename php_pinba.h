@@ -36,14 +36,14 @@ extern zend_module_entry pinba_module_entry;
 typedef struct _pinba_req_data { /* {{{ */
 	char *server_name;
 	char *script_name;
-	unsigned int req_count;
-	unsigned int doc_size;
-	unsigned int mem_peak_usage;
+	size_t req_count;
+	size_t doc_size;
+	size_t  mem_peak_usage;
 	struct timeval req_start;
 	struct timeval req_time;
 	struct timeval ru_utime;
 	struct timeval ru_stime;
-	unsigned int memory_footprint;
+	size_t memory_footprint;
 } pinba_req_data;
 /* }}} */
 
