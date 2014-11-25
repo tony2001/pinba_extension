@@ -577,12 +577,12 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		struct rusage u;
 
 #if PHP_MAJOR_VERSION >= 5
-		PINBA_G(tmp_req_data).mem_peak_usage = zend_memory_peak_usage(1 TSRMLS_CC);
+		req_data->mem_peak_usage = zend_memory_peak_usage(1 TSRMLS_CC);
 #elif PHP_MAJOR_VERSION == 4 && MEMORY_LIMIT
-		PINBA_G(tmp_req_data).mem_peak_usage = AG(allocated_memory_peak);
+		req_data->mem_peak_usage = AG(allocated_memory_peak);
 #else
 		/* no data available */
-		PINBA_G(tmp_req_data).mem_peak_usage = 0;
+		req_data->mem_peak_usage = 0;
 #endif
 
 		request->memory_peak = req_data->mem_peak_usage;
@@ -603,6 +603,8 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 			timersub(&u.ru_utime, &req_data->ru_utime, &ru_utime);
 			timersub(&u.ru_stime, &req_data->ru_stime, &ru_stime);
 		}
+		request->ru_utime = timeval_to_float(ru_utime);
+		request->ru_stime = timeval_to_float(ru_stime);
 
 		request->status = SG(sapi_headers).http_response_code;
 		request->has_status = 1;
