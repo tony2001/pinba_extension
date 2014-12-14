@@ -1619,6 +1619,12 @@ static PHP_FUNCTION(pinba_get_info)
 	add_assoc_long_ex(return_value, "req_count", sizeof("req_count"), PINBA_G(tmp_req_data).req_count + 1);
 	add_assoc_long_ex(return_value, "doc_size", sizeof("doc_size"), PINBA_G(tmp_req_data).doc_size);
 
+	if (PINBA_G(schema)) {
+		add_assoc_string_ex(return_value, "schema", sizeof("schema"), PINBA_G(schema), 1);
+	} else {
+		add_assoc_string_ex(return_value, "schema", sizeof("schema"), (char *)"unknown", 1);
+	}
+
 	if (PINBA_G(server_name)) {
 		add_assoc_string_ex(return_value, "server_name", sizeof("server_name"), PINBA_G(server_name), 1);
 	} else {
