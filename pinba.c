@@ -1346,6 +1346,64 @@ static PHP_FUNCTION(pinba_timer_stop)
 }
 /* }}} */
 
+/* {{{ proto bool pinba_timer_epoch(array tags[, array data])
+   Stop user timer as it if it were started at the very beginning */
+static PHP_FUNCTION(pinba_timer_epoch)
+{
+	zval *tags_array, *data = NULL;
+	pinba_timer_t *t = NULL;
+	pinba_timer_tag_t **tags;
+	int tags_num;
+
+	if (PINBA_G(timers_stopped)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "all timers have already been stopped");
+		RETURN_FALSE;
+	}
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a|a", &tags_array, &data) != SUCCESS) {
+		return;
+	}
+
+	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags_array));
+
+	if (!tags_num) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "tags array cannot be empty");
+		RETURN_FALSE;
+	}
+
+	if (php_pinba_array_to_tags(tags_array, &tags TSRMLS_CC) != SUCCESS) {
+		RETURN_FALSE;
+	}
+
+    /* Create the timer as if it was started from the beginning */
+	t = php_pinba_timer_ctor(tags, tags_num TSRMLS_CC);
+	t->started = 1;
+	t->hit_count = 1;
+    timeval_cvt(&t->tmp_ru_utime, &(PINBA_G(tmp_req_data).ru_utime));
+    timeval_cvt(&t->tmp_ru_stime, &(PINBA_G(tmp_req_data).ru_stime));
+	timeval_cvt(&t->start, &(PINBA_G(tmp_req_data).req_start));
+
+	if (data) {
+		MAKE_STD_ZVAL(t->data);
+		*(t->data) = *data;
+		zval_copy_ctor(t->data);
+		INIT_PZVAL(t->data);
+	}
+
+#if PHP_VERSION_ID >= 50400
+	t->rsrc_id = zend_list_insert(t, le_pinba_timer TSRMLS_CC);
+#else
+	t->rsrc_id = zend_list_insert(t, le_pinba_timer);
+#endif
+
+    /* Stop the timer right now */
+	php_pinba_timer_stop(t);
+
+	zend_list_addref(t->rsrc_id);
+	RETURN_RESOURCE(t->rsrc_id);
+}
+/* }}} */
+
 /* {{{ proto bool pinba_timer_delete(resource timer)
    Delete user timer */
 static PHP_FUNCTION(pinba_timer_delete)
@@ -2277,6 +2335,7 @@ zend_function_entry pinba_functions[] = {
 	PHP_FE(pinba_timer_start, NULL)
 	PHP_FE(pinba_timer_add, NULL)
 	PHP_FE(pinba_timer_stop, NULL)
+	PHP_FE(pinba_timer_epoch, NULL)
 	PHP_FE(pinba_timer_delete, NULL)
 	PHP_FE(pinba_timer_data_merge, NULL)
 	PHP_FE(pinba_timer_data_replace, NULL)
