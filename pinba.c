@@ -2054,7 +2054,7 @@ SET_METHOD_NUM(setMemoryFootprint, memory_footprint, long, "l");
 SET_METHOD_NUM(setMemoryPeak, memory_peak, long, "l");
 SET_METHOD_NUM(setDocumentSize, document_size, long, "l");
 SET_METHOD_NUM(setStatus, status, long, "l");
-SET_METHOD_NUM(setRequestTime, request_time, float, "d");
+SET_METHOD_NUM(setRequestTime, request_time, double, "d");
 
 /* {{{ proto bool PinbaClient::setRusage(array rusage)
     */
