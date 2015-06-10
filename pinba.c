@@ -2264,33 +2264,136 @@ static PHP_METHOD(PinbaClient, getData)
 }
 /* }}} */
 
+/* {{{ arginfo */
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_start, 0, 0, 1)
+	ZEND_ARG_INFO(0, tags)
+	ZEND_ARG_INFO(0, data)
+	ZEND_ARG_INFO(0, hit_count)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_add, 0, 0, 2)
+	ZEND_ARG_INFO(0, tags)
+	ZEND_ARG_INFO(0, value)
+	ZEND_ARG_INFO(0, data)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_stop, 0, 0, 1)
+	ZEND_ARG_INFO(0, timer)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_delete, 0, 0, 1)
+	ZEND_ARG_INFO(0, timer)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_data_merge, 0, 0, 2)
+	ZEND_ARG_INFO(0, timer)
+	ZEND_ARG_INFO(0, data)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_data_replace, 0, 0, 2)
+	ZEND_ARG_INFO(0, timer)
+	ZEND_ARG_INFO(0, data)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_tags_merge, 0, 0, 2)
+	ZEND_ARG_INFO(0, timer)
+	ZEND_ARG_INFO(0, tags)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_tags_replace, 0, 0, 2)
+	ZEND_ARG_INFO(0, timer)
+	ZEND_ARG_INFO(0, tags)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_flush, 0, 0, 0)
+	ZEND_ARG_INFO(0, custom_script_name)
+	ZEND_ARG_INFO(0, flags)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_get_info, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_get_data, 0, 0, 0)
+	ZEND_ARG_INFO(0, flags)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timer_get_info, 0, 0, 1)
+	ZEND_ARG_INFO(0, timer)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timers_stop, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_timers_get, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_script_name_set, 0, 0, 1)
+	ZEND_ARG_INFO(0, custom_script_name)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_hostname_set, 0, 0, 1)
+	ZEND_ARG_INFO(0, custom_hostname)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_schema_set, 0, 0, 1)
+	ZEND_ARG_INFO(0, custom_schema)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_server_name_set, 0, 0, 1)
+	ZEND_ARG_INFO(0, custom_server_name)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_request_time_set, 0, 0, 1)
+	ZEND_ARG_INFO(0, request_time)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_tag_set, 0, 0, 2)
+	ZEND_ARG_INFO(0, tag)
+	ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_tag_get, 0, 0, 1)
+	ZEND_ARG_INFO(0, tag)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_tag_delete, 0, 0, 1)
+	ZEND_ARG_INFO(0, tag)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_tags_get, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+/* }}} */
+
+#define PINBA_FUNC(func) PHP_FE(func, arginfo_ ## func)
 
 /* {{{ pinba_functions[]
  */
 zend_function_entry pinba_functions[] = {
-	PHP_FE(pinba_timer_start, NULL)
-	PHP_FE(pinba_timer_add, NULL)
-	PHP_FE(pinba_timer_stop, NULL)
-	PHP_FE(pinba_timer_delete, NULL)
-	PHP_FE(pinba_timer_data_merge, NULL)
-	PHP_FE(pinba_timer_data_replace, NULL)
-	PHP_FE(pinba_timer_tags_merge, NULL)
-	PHP_FE(pinba_timer_tags_replace, NULL)
-	PHP_FE(pinba_flush, NULL)
-	PHP_FE(pinba_get_info, NULL)
-	PHP_FE(pinba_get_data, NULL)
-	PHP_FE(pinba_timer_get_info, NULL)
-	PHP_FE(pinba_timers_stop, NULL)
-	PHP_FE(pinba_timers_get, NULL)
-	PHP_FE(pinba_script_name_set, NULL)
-	PHP_FE(pinba_hostname_set, NULL)
-	PHP_FE(pinba_server_name_set, NULL)
-	PHP_FE(pinba_schema_set, NULL)
-	PHP_FE(pinba_request_time_set, NULL)
-	PHP_FE(pinba_tag_set, NULL)
-	PHP_FE(pinba_tag_get, NULL)
-	PHP_FE(pinba_tag_delete, NULL)
-	PHP_FE(pinba_tags_get, NULL)
+	PINBA_FUNC(pinba_timer_start)
+	PINBA_FUNC(pinba_timer_add)
+	PINBA_FUNC(pinba_timer_stop)
+	PINBA_FUNC(pinba_timer_delete)
+	PINBA_FUNC(pinba_timer_data_merge)
+	PINBA_FUNC(pinba_timer_data_replace)
+	PINBA_FUNC(pinba_timer_tags_merge)
+	PINBA_FUNC(pinba_timer_tags_replace)
+	PINBA_FUNC(pinba_flush)
+	PINBA_FUNC(pinba_get_info)
+	PINBA_FUNC(pinba_get_data)
+	PINBA_FUNC(pinba_timer_get_info)
+	PINBA_FUNC(pinba_timers_stop)
+	PINBA_FUNC(pinba_timers_get)
+	PINBA_FUNC(pinba_script_name_set)
+	PINBA_FUNC(pinba_hostname_set)
+	PINBA_FUNC(pinba_server_name_set)
+	PINBA_FUNC(pinba_schema_set)
+	PINBA_FUNC(pinba_request_time_set)
+	PINBA_FUNC(pinba_tag_set)
+	PINBA_FUNC(pinba_tag_get)
+	PINBA_FUNC(pinba_tag_delete)
+	PINBA_FUNC(pinba_tags_get)
 	{NULL, NULL, NULL}
 };
 /* }}} */
