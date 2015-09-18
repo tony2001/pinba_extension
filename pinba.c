@@ -979,8 +979,8 @@ static int php_pinba_key_compare(const void *a, const void *b) /* {{{ */
 	zval first;
 	zval second;
 
-	f = *((Bucket **) a);
-	s = *((Bucket **) b);
+	f = (Bucket *) a;
+	s = (Bucket *) b;
 
 	if (f->key == NULL) {
 		ZVAL_LONG(&first, f->h);
@@ -1025,8 +1025,7 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 	int num, i = 0;
 	zval *value;
 	zend_string *tag_name_str;
-	char *value_str;
-	ulong value_str_len, dummy;
+	zend_ulong dummy;
 
 	num = zend_hash_num_elements(array);
 	if (!num) {
@@ -1040,6 +1039,7 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 	for (zend_hash_internal_pointer_reset(array);
 			(value = zend_hash_get_current_data(array)) != NULL;
 			zend_hash_move_forward(array)) {
+		zend_string *str;
 
 		switch (Z_TYPE_P(value)) {
 			case IS_NULL:
@@ -1048,10 +1048,7 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 			case IS_FALSE:
 			case IS_LONG:
 			case IS_DOUBLE:
-				SEPARATE_ZVAL(value);
-				convert_to_string_ex(value);
-				value_str = estrndup(Z_STRVAL_P(value), Z_STRLEN_P(value));
-				value_str_len = Z_STRLEN_P(value);
+				str = zval_get_string(value);
 				break;
 			default:
 				php_error_docref(NULL, E_WARNING, "tags cannot have non-scalar values");
@@ -1064,12 +1061,11 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 			(*tags)[i] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
 			(*tags)[i]->name = estrndup(tag_name_str->val, tag_name_str->len);
 			(*tags)[i]->name_len = tag_name_str->len;
-			(*tags)[i]->value = value_str;
-			(*tags)[i]->value_len = value_str_len;
+			(*tags)[i]->value = estrndup(str->val, str->len);
+			(*tags)[i]->value_len = str->len;
+			zend_string_release(str);
 		} else {
-			if (value_str) {
-				efree(value_str);
-			}
+			zend_string_release(str);
 			php_error_docref(NULL, E_WARNING, "tags can only have string names (i.e. tags array cannot contain numeric indexes)");
 			php_pinba_timer_tags_dtor(*tags, i);
 			efree(*tags);
@@ -1978,12 +1974,13 @@ static PHP_METHOD(PinbaClient, __construct)
 		 (tmp = zend_hash_get_current_data(servers)) != NULL;
 		 zend_hash_move_forward(servers)) {
 		char *host, *port;
+		zend_string *str = zval_get_string(tmp);
 
-		convert_to_string_ex(tmp);
-
-		if (php_pinba_parse_server(Z_STRVAL_P(tmp), &host, &port) != SUCCESS) {
+		if (php_pinba_parse_server(str->val, &host, &port) != SUCCESS) {
+			zend_string_release(str);
 			continue;
 		}
+		zend_string_release(str);
 
 		new_collector = php_pinba_collector_add(client->collectors, &client->n_collectors);
 		if (new_collector == NULL) {
@@ -2070,8 +2067,7 @@ static PHP_METHOD(PinbaClient, setRusage)
 		 ((tmp = zend_hash_get_current_data(rusage)) != NULL) && i < 2;
 		 zend_hash_move_forward(rusage), i++) {
 
-		convert_to_double_ex(tmp);
-		client->rusage[i] = Z_DVAL_P(tmp);
+		client->rusage[i] = zval_get_double(tmp);
 	}
 	RETURN_TRUE;
 }
@@ -2140,11 +2136,10 @@ static void php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAMETERS, int add
 				((tmp = zend_hash_get_current_data(rusage)) != NULL) && i < 2;
 				zend_hash_move_forward(rusage), i++) {
 
-			convert_to_double_ex(tmp);
 			if (i == 0) {
-				ru_utime = Z_DVAL_P(tmp);
+				ru_utime = zval_get_double(tmp);
 			} else {
-				ru_stime = Z_DVAL_P(tmp);
+				ru_stime = zval_get_double(tmp);
 			}
 		}
 	}
