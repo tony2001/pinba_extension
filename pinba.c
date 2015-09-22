@@ -975,7 +975,6 @@ static int php_pinba_key_compare(const void *a, const void *b) /* {{{ */
 {
 	Bucket *f;
 	Bucket *s;
-	zval result;
 	zval first;
 	zval second;
 
@@ -994,29 +993,7 @@ static int php_pinba_key_compare(const void *a, const void *b) /* {{{ */
 		ZVAL_STR(&second, s->key);
 	}
 
-	if (string_compare_function(&result, &first, &second) == FAILURE) {
-		return 0;
-	}
-
-	if (Z_TYPE(result) == IS_DOUBLE) {
-		if (Z_DVAL(result) < 0) {
-			return -1;
-		} else if (Z_DVAL(result) > 0) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
-	convert_to_long(&result);
-
-	if (Z_LVAL(result) < 0) {
-		return -1;
-	} else if (Z_LVAL(result) > 0) {
-		return 1;
-	}
-
-	return 0;
+	return string_compare_function(&first, &second);
 }
 /* }}} */
 
