@@ -50,7 +50,6 @@ zend_class_entry *pinba_client_ce;
 static zend_object_handlers pinba_client_handlers;
 
 typedef struct {
-	zend_object std;
 	char **servers;
 	int n_servers;
 	char *hostname;
@@ -68,6 +67,7 @@ typedef struct {
 	HashTable timers;
 	pinba_collector collectors[PINBA_COLLECTORS_MAX];
 	unsigned int n_collectors;
+	zend_object std;
 } pinba_client_t;
 
 ZEND_DECLARE_MODULE_GLOBALS(pinba)
@@ -1086,26 +1086,26 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info) /* {{{ */
 	} else {
 		timeval_cvt(&tmp, &t->value);
 	}
-	add_assoc_double_ex(info, "value", sizeof("value") - 1, timeval_to_float(tmp));
+	add_assoc_double(info, "value", timeval_to_float(tmp));
 
 	array_init(&tags);
 
 	for (i = 0; i < t->tags_num; i++) {
 		tag = t->tags[i];
-		add_assoc_stringl_ex(&tags, tag->name, tag->name_len, tag->value, tag->value_len);
+		add_assoc_stringl(&tags, tag->name, tag->value, tag->value_len);
 	}
 
-	add_assoc_zval_ex(info, "tags", sizeof("tags") - 1, &tags);
-	add_assoc_bool_ex(info, "started", sizeof("started") - 1, t->started ? 1 : 0);
+	add_assoc_zval(info, "tags", &tags);
+	add_assoc_bool(info, "started", t->started ? 1 : 0);
 	if (t->data) {
-		add_assoc_zval_ex(info, "data", sizeof("data") - 1, t->data);
+		add_assoc_zval(info, "data", t->data);
 		zval_add_ref(t->data);
 	} else {
-		add_assoc_null_ex(info, "data", sizeof("data") - 1);
+		add_assoc_null(info, "data");
 	}
 
-	add_assoc_double_ex(info, "ru_utime", sizeof("ru_utime") - 1, timeval_to_float(t->ru_utime));
-	add_assoc_double_ex(info, "ru_stime", sizeof("ru_stime") - 1, timeval_to_float(t->ru_stime));
+	add_assoc_double(info, "ru_utime", timeval_to_float(t->ru_utime));
+	add_assoc_double(info, "ru_stime", timeval_to_float(t->ru_stime));
 }
 /* }}} */
 
@@ -1548,38 +1548,32 @@ static PHP_FUNCTION(pinba_get_info)
 
 	array_init(return_value);
 
-#if PHP_MAJOR_VERSION >= 5
-	add_assoc_long_ex(return_value, "mem_peak_usage", sizeof("mem_peak_usage"), zend_memory_peak_usage(1));
-#elif PHP_MAJOR_VERSION == 4 && MEMORY_LIMIT
-	add_assoc_long_ex(return_value, "mem_peak_usage", sizeof("mem_peak_usage"), AG(allocated_memory_peak));
-#else
-	add_assoc_long_ex(return_value, "mem_peak_usage", sizeof("mem_peak_usage"), 0);
-#endif
+	add_assoc_long(return_value, "mem_peak_usage", zend_memory_peak_usage(1));
 
 	if (PINBA_G(request_time) > 0) {
 		/* use custom request time */
-		add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), PINBA_G(request_time));
+		add_assoc_double(return_value, "req_time", PINBA_G(request_time));
 	} else {
 		if (gettimeofday(&tmp, 0) == 0) {
 			timersub(&tmp, &(PINBA_G(tmp_req_data).req_start), &tmp);
-			add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), timeval_to_float(tmp));
+			add_assoc_double(return_value, "req_time", timeval_to_float(tmp));
 		} else {
-			add_assoc_double_ex(return_value, "req_time", sizeof("req_time"), 0);
+			add_assoc_double(return_value, "req_time", 0);
 		}
 	}
 
 	if (getrusage(RUSAGE_SELF, &u) == 0) {
 		timersub(&u.ru_utime, &(PINBA_G(tmp_req_data).ru_utime), &tmp);
-		add_assoc_double_ex(return_value, "ru_utime", sizeof("ru_utime"), timeval_to_float(tmp));
+		add_assoc_double(return_value, "ru_utime", timeval_to_float(tmp));
 		timersub(&u.ru_stime, &(PINBA_G(tmp_req_data).ru_stime), &tmp);
-		add_assoc_double_ex(return_value, "ru_stime", sizeof("ru_stime"), timeval_to_float(tmp));
+		add_assoc_double(return_value, "ru_stime", timeval_to_float(tmp));
 	} else {
-		add_assoc_double_ex(return_value, "ru_utime", sizeof("ru_utime"), 0);
-		add_assoc_double_ex(return_value, "ru_stime", sizeof("ru_stime"), 0);
+		add_assoc_double(return_value, "ru_utime", 0);
+		add_assoc_double(return_value, "ru_stime", 0);
 	}
 
-	add_assoc_long_ex(return_value, "req_count", sizeof("req_count"), PINBA_G(tmp_req_data).req_count + 1);
-	add_assoc_long_ex(return_value, "doc_size", sizeof("doc_size"), PINBA_G(tmp_req_data).doc_size);
+	add_assoc_long(return_value, "req_count", PINBA_G(tmp_req_data).req_count + 1);
+	add_assoc_long(return_value, "doc_size", PINBA_G(tmp_req_data).doc_size);
 
 	if (PINBA_G(schema)) {
 		add_assoc_string(return_value, "schema", PINBA_G(schema));
@@ -1630,7 +1624,7 @@ static PHP_FUNCTION(pinba_get_info)
 		char *tag_value = Z_PTR_P(zv);
 
 		if (zend_hash_get_current_key_ex(&PINBA_G(tags), &key, &dummy, &pos) == HASH_KEY_IS_STRING) {
-			add_assoc_string_ex(&tags, key->val, key->len, tag_value);
+			add_assoc_string(&tags, key->val, tag_value);
 		} else {
 			continue;
 		}
@@ -1924,7 +1918,7 @@ static PHP_FUNCTION(pinba_tags_get)
 		zend_ulong dummy;
 
 		if (zend_hash_get_current_key_ex(&PINBA_G(tags), &key, &dummy, &pos) == HASH_KEY_IS_STRING) {
-			add_assoc_string_ex(return_value, key->val, key->len, value);
+			add_assoc_string(return_value, key->val, value);
 		} else {
 			continue;
 		}
@@ -2516,6 +2510,7 @@ static PHP_MINIT_FUNCTION(pinba)
 	pinba_client_handlers.dtor_obj = zend_objects_destroy_object;
 	pinba_client_handlers.free_obj = pinba_client_free_storage;
 	pinba_client_handlers.clone_obj = NULL;
+	pinba_client_handlers.offset = XtOffsetOf(pinba_client_t, std);
 	return SUCCESS;
 }
 /* }}} */
