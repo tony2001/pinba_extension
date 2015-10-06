@@ -1112,7 +1112,7 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info) /* {{{ */
 static void pinba_client_free_storage(zend_object *object) /* {{{ */
 {
 	int i;
-	pinba_client_t *client = (pinba_client_t *) object;
+	pinba_client_t *client = (pinba_client_t *) php_pinba_client_object(object);
 	zend_object_std_dtor(&client->std);
 
 	if (client->n_servers > 0) {
@@ -1158,7 +1158,7 @@ zend_object *pinba_client_new(zend_class_entry *ce) /* {{{ */
 
 	zend_hash_init(&intern->timers, 0, NULL, php_timer_hash_dtor, 0);
 	zend_hash_init(&intern->tags, 0, NULL, php_tag_hash_dtor, 0);
-	return (zend_object *)intern;
+	return &intern->std;
 }
 /* }}} */
 
