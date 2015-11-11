@@ -964,6 +964,8 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags) /* 
 		PINBA_G(tmp_req_data).doc_size = 0;
 		PINBA_G(tmp_req_data).mem_peak_usage= 0;
 		PINBA_G(tmp_req_data).req_count = 0;
+
+		zend_hash_clean(&PINBA_G(tags));
 	}
 
 	PINBA_G(timers_stopped) = 0;
