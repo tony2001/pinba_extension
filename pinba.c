@@ -1151,8 +1151,7 @@ zend_object *pinba_client_new(zend_class_entry *ce) /* {{{ */
 {
 	pinba_client_t *intern;
 
-	intern = emalloc(sizeof(pinba_client_t));
-	memset(intern, 0, sizeof(pinba_client_t));
+	intern = ecalloc(1, sizeof(pinba_client_t) + zend_object_properties_size(ce));
 
 	zend_object_std_init(&(intern->std), ce);
 	object_properties_init(&intern->std, ce);
