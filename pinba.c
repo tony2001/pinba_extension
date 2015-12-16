@@ -2470,7 +2470,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 	char *tmp;
 	pinba_collector *new_collector;
 
-	if (new_value == NULL || new_value[0] == 0) {
+	if (new_value == NULL) {
 		return FAILURE;
 	}
 
