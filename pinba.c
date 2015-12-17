@@ -1015,9 +1015,7 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 	zend_hash_sort(array, php_pinba_key_compare, 0);
 
 	*tags = (pinba_timer_tag_t **)ecalloc(num, sizeof(pinba_timer_tag_t *));
-	for (zend_hash_internal_pointer_reset(array);
-			(value = zend_hash_get_current_data(array)) != NULL;
-			zend_hash_move_forward(array)) {
+	ZEND_HASH_FOREACH_STR_KEY_VAL_IND(array, tag_name_str, value) {
 		zend_string *str;
 
 		switch (Z_TYPE_P(value)) {
@@ -1036,7 +1034,7 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 				return FAILURE;
 		}
 
-		if (zend_hash_get_current_key(array, &tag_name_str, &dummy) == HASH_KEY_IS_STRING) {
+		if (tag_name_str) {
 			(*tags)[i] = (pinba_timer_tag_t *)emalloc(sizeof(pinba_timer_tag_t));
 			(*tags)[i]->name = estrndup(tag_name_str->val, tag_name_str->len);
 			(*tags)[i]->name_len = tag_name_str->len;
@@ -1051,7 +1049,7 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 			return FAILURE;
 		}
 		i++;
-	}
+	} ZEND_HASH_FOREACH_END();
 	return SUCCESS;
 }
 /* }}} */
