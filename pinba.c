@@ -2481,7 +2481,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 
 	php_pinba_cleanup_collectors(PINBA_G(collectors), &PINBA_G(n_collectors));
 
-	for (tmp = copy; (address = strsep(&tmp, ", ")); /**/) {
+	for (tmp = copy; (address = strsep(&tmp, ", ")) && (address[0] != '\0'); /**/) {
 		if (php_pinba_parse_server(address, &new_node, &new_service) != SUCCESS) {
 			free(copy);
 			return FAILURE;
