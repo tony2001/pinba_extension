@@ -113,7 +113,7 @@ typedef struct _pinba_timer { /* {{{ */
 		int tv_sec;
 		int tv_usec;
 	} value;
-	zval *data;
+	zval data;
 	struct timeval tmp_ru_utime;
 	struct timeval tmp_ru_stime;
 	struct timeval ru_utime;
@@ -382,10 +382,8 @@ static void php_timer_resource_dtor(zend_resource *entry) /* {{{ */
 	/* php_pinba_timer_dtor(t); all timers are destroyed at once */
 
 	/* but we don't need the user data anymore */
-	if (t->data) {
-		zval_ptr_dtor(t->data);
-		efree(t->data);
-		t->data = NULL;
+	if (!Z_ISUNDEF(t->data)) {
+		zval_ptr_dtor(&t->data);
 	}
 
 	if (!t->deleted && !PINBA_G(in_rshutdown)) {
@@ -463,9 +461,9 @@ static int php_pinba_init_socket(pinba_collector *collectors, int n_collectors) 
 
 		ai_list = NULL;
 		status = getaddrinfo(collector->host, collector->port, &ai_hints, &ai_list);
+		fd = -1; /* need to put -1 into collector->fd */
 		if (status != 0) {
 			php_error_docref(NULL, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", collector->host, gai_strerror(status));
-			fd = -1; /* need to put -1 into collector->fd */
 		}
 		else {
 			for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
@@ -771,7 +769,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		zend_ulong num_key;
 
 		if (zend_hash_get_current_key_ex(&dict, &str, &num_key, &pos) == HASH_KEY_IS_STRING) {
-			request->dictionary[n] = strdup(str->val);
+			request->dictionary[n] = strndup(str->val, str->len);
 			n++;
 		} else {
 			continue;
@@ -1004,7 +1002,6 @@ static int php_pinba_array_to_tags(HashTable *array, pinba_timer_tag_t ***tags) 
 	int num, i = 0;
 	zval *value;
 	zend_string *tag_name_str;
-	zend_ulong dummy;
 
 	num = zend_hash_num_elements(array);
 	if (!num) {
@@ -1097,9 +1094,9 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info) /* {{{ */
 
 	add_assoc_zval(info, "tags", &tags);
 	add_assoc_bool(info, "started", t->started ? 1 : 0);
-	if (t->data) {
-		add_assoc_zval(info, "data", t->data);
-		zval_add_ref(t->data);
+	if (!Z_ISUNDEF(t->data)) {
+		add_assoc_zval(info, "data", &t->data);
+		zval_add_ref(&t->data);
 	} else {
 		add_assoc_null(info, "data");
 	}
@@ -1204,8 +1201,7 @@ static PHP_FUNCTION(pinba_timer_start)
 	t = php_pinba_timer_ctor(tags, tags_num);
 
 	if (data && zend_hash_num_elements(Z_ARRVAL_P(data)) > 0) {
-		t->data = emalloc(sizeof(zval));
-		ZVAL_COPY(t->data, data);
+		ZVAL_DUP(&t->data, data);
 	}
 
 	t->started = 1;
@@ -1265,8 +1261,7 @@ static PHP_FUNCTION(pinba_timer_add)
 	t = php_pinba_timer_ctor(tags, tags_num);
 
 	if (data) {
-		t->data = emalloc(sizeof(zval));
-		ZVAL_COPY(t->data, data);
+		ZVAL_DUP(&t->data, data);
 	}
 
 	t->started = 0;
@@ -1353,11 +1348,10 @@ static PHP_FUNCTION(pinba_timer_data_merge)
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
-	if (!t->data) {
-		t->data = emalloc(sizeof(zval));
-		ZVAL_COPY(t->data, data);
+	if (Z_ISUNDEF(t->data)) {
+		ZVAL_DUP(&t->data, data);
 	} else {
-		zend_hash_merge(Z_ARRVAL_P(t->data), Z_ARRVAL_P(data), zval_add_ref, 1);
+		zend_hash_merge(Z_ARRVAL_P(&t->data), Z_ARRVAL_P(data), zval_add_ref, 1);
 	}
 
 	RETURN_TRUE;
@@ -1384,18 +1378,15 @@ static PHP_FUNCTION(pinba_timer_data_replace)
 
 	if (!data) {
 		/* reset */
-		if (t->data) {
-			zval_ptr_dtor(t->data);
-			efree(t->data);
-			t->data = NULL;
+		if (!Z_ISUNDEF(t->data)) {
+			zval_ptr_dtor(&t->data);
+			ZVAL_UNDEF(&t->data);
 		}
 	} else {
-		if (t->data) {
-			zval_ptr_dtor(t->data);
-		} else {
-			t->data = emalloc(sizeof(zval));
+		if (!Z_ISUNDEF(t->data)) {
+			zval_ptr_dtor(&t->data);
 		}
-		ZVAL_COPY(t->data, data);
+		ZVAL_DUP(&t->data, data);
 	}
 
 	RETURN_TRUE;
@@ -1623,7 +1614,7 @@ static PHP_FUNCTION(pinba_get_info)
 		char *tag_value = Z_PTR_P(zv);
 
 		if (zend_hash_get_current_key_ex(&PINBA_G(tags), &key, &dummy, &pos) == HASH_KEY_IS_STRING) {
-			add_assoc_string(&tags, key->val, tag_value);
+			add_assoc_string_ex(&tags, key->val, key->len, tag_value);
 		} else {
 			continue;
 		}
@@ -1769,7 +1760,7 @@ static PHP_FUNCTION(pinba_hostname_set)
 		PINBA_G(host_name)[hostname_len] = '\0';
 	} else {
 		memcpy(PINBA_G(host_name), hostname, sizeof(PINBA_G(host_name)) - 1);
-		PINBA_G(host_name)[sizeof(PINBA_G(host_name))] = '\0';
+		PINBA_G(host_name)[sizeof(PINBA_G(host_name)) - 1] = '\0';
 	}
 	RETURN_TRUE;
 }
@@ -1791,7 +1782,7 @@ static PHP_FUNCTION(pinba_schema_set)
 		PINBA_G(schema)[schema_len] = '\0';
 	} else {
 		memcpy(PINBA_G(schema), schema, sizeof(PINBA_G(schema)) - 1);
-		PINBA_G(schema)[sizeof(PINBA_G(schema))] = '\0';
+		PINBA_G(schema)[sizeof(PINBA_G(schema)) - 1] = '\0';
 	}
 	RETURN_TRUE;
 }
@@ -1917,7 +1908,7 @@ static PHP_FUNCTION(pinba_tags_get)
 		zend_ulong dummy;
 
 		if (zend_hash_get_current_key_ex(&PINBA_G(tags), &key, &dummy, &pos) == HASH_KEY_IS_STRING) {
-			add_assoc_string(return_value, key->val, value);
+			add_assoc_string_ex(return_value, key->val, key->len, value);
 		} else {
 			continue;
 		}
@@ -1943,10 +1934,12 @@ static PHP_METHOD(PinbaClient, __construct)
 	for (zend_hash_internal_pointer_reset(servers);
 		 (tmp = zend_hash_get_current_data(servers)) != NULL;
 		 zend_hash_move_forward(servers)) {
-		char *host, *port;
+		char *host, *port, *address_copy;
 		zend_string *str = zval_get_string(tmp);
 
-		if (php_pinba_parse_server(str->val, &host, &port) != SUCCESS) {
+		address_copy = estrndup(str->val, str->len);
+		if (php_pinba_parse_server(address_copy, &host, &port) != SUCCESS) {
+			efree(address_copy);
 			zend_string_release(str);
 			continue;
 		}
@@ -1954,12 +1947,14 @@ static PHP_METHOD(PinbaClient, __construct)
 
 		new_collector = php_pinba_collector_add(client->collectors, &client->n_collectors);
 		if (new_collector == NULL) {
+			efree(address_copy);
 			break;
 		}
 
 		new_collector->host = strdup(host);
 		new_collector->port = (port == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(port);
 		new_collector->fd = -1; /* set invalid fd */
+		efree(address_copy);
 	}
 }
 /* }}} */
@@ -2428,7 +2423,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		return FAILURE;
 	}
 
-	copy = strdup(new_value->val);
+	copy = strndup(new_value->val, new_value->len);
 	if (copy == NULL) {
 		return FAILURE;
 	}
