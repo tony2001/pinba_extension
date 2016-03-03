@@ -67,6 +67,9 @@ typedef struct {
 	HashTable timers;
 	pinba_collector collectors[PINBA_COLLECTORS_MAX];
 	unsigned int n_collectors;
+	long flags;
+	int collectors_initialized:1;
+	int data_sent:1;
 	zend_object std;
 } pinba_client_t;
 
@@ -88,6 +91,7 @@ size_t (*old_sapi_ub_write) (const char *, size_t);
 #define PINBA_FLUSH_ONLY_STOPPED_TIMERS (1<<0)
 #define PINBA_FLUSH_RESET_DATA (1<<1)
 #define PINBA_ONLY_RUNNING_TIMERS (1<<2)
+#define PINBA_AUTO_FLUSH (1<<3)
 
 typedef struct _pinba_timer_tag { /* {{{ */
 	char *name;
@@ -585,7 +589,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		tags = &client->tags;
 		timers = &client->timers;
 	} else {
-		struct timeval ru_utime, ru_stime;
+		struct timeval ru_utime = {0, 0}, ru_stime = {0, 0};
 		struct rusage u;
 
 #if PHP_MAJOR_VERSION >= 5
@@ -875,6 +879,11 @@ static inline int php_pinba_req_data_send(pinba_client_t *client, const char *cu
 		pinba_collector *collectors;
 		char *data;
 
+		if (client) {
+			/* disable AUTO_FLUSH if data has been sent manually */
+			client->data_sent = 1;
+		}
+
 		PINBA_PACK(request, data, data_len);
 
 		if (client) {
@@ -1110,6 +1119,13 @@ static void pinba_client_free_storage(zend_object *object) /* {{{ */
 {
 	int i;
 	pinba_client_t *client = (pinba_client_t *) php_pinba_client_object(object);
+
+	if (!client->data_sent && (client->flags & PINBA_AUTO_FLUSH) != 0) {
+		if (client->collectors_initialized || php_pinba_init_socket(client->collectors, client->n_collectors) != FAILURE) {
+			php_pinba_req_data_send(client, NULL, client->flags);
+		}
+	}
+
 	zend_object_std_dtor(&client->std);
 
 	if (client->n_servers > 0) {
@@ -1925,11 +1941,13 @@ static PHP_METHOD(PinbaClient, __construct)
 	zval *tmp;
 	pinba_collector *new_collector;
 	pinba_client_t *client;
+	long flags = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "h", &servers) != SUCCESS) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "h|l", &servers, &flags) != SUCCESS) {
 		return;
 	}
 	client = Z_PINBACLIENT_P(getThis());
+	client->flags = flags;
 
 	for (zend_hash_internal_pointer_reset(servers);
 		 (tmp = zend_hash_get_current_data(servers)) != NULL;
@@ -2185,8 +2203,17 @@ static PHP_METHOD(PinbaClient, send)
 		RETURN_FALSE;
 	}
 
-	if (php_pinba_init_socket(client->collectors, client->n_collectors) != SUCCESS) {
-		RETURN_FALSE;
+	/* no need to reinitialize collectors on every send */
+	if (!client->collectors_initialized) {
+		if (php_pinba_init_socket(client->collectors, client->n_collectors) != SUCCESS) {
+			RETURN_FALSE;
+		}
+		client->collectors_initialized = 1;
+	}
+
+	/* if set, flags override flags set in the constructor */
+	if (!flags && client->flags > 0) {
+		flags = client->flags;
 	}
 
 	php_pinba_req_data_send(client, NULL, flags);
@@ -2490,6 +2517,7 @@ static PHP_MINIT_FUNCTION(pinba)
 	REGISTER_LONG_CONSTANT("PINBA_FLUSH_RESET_DATA", PINBA_FLUSH_RESET_DATA, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("PINBA_ONLY_STOPPED_TIMERS", PINBA_FLUSH_ONLY_STOPPED_TIMERS, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("PINBA_ONLY_RUNNING_TIMERS", PINBA_ONLY_RUNNING_TIMERS, CONST_CS | CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("PINBA_AUTO_FLUSH", PINBA_AUTO_FLUSH, CONST_CS | CONST_PERSISTENT);
 
 #if PHP_VERSION_ID >= 50400
 	old_sapi_ub_write = sapi_module.ub_write;
