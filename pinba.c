@@ -520,10 +520,12 @@ static inline char *_pinba_fetch_global_var(char *name, int name_len) /* {{{ */
 	char *res;
 	zval *tmp;
 
-	tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), name, name_len);
-	if (tmp && Z_TYPE_P(tmp) == IS_STRING && Z_STRLEN_P(tmp) > 0) {
-		res = strdup(Z_STRVAL_P(tmp));
-		return res;
+	if (!PINBA_G(in_rshutdown) && (Z_TYPE(PG(http_globals)[TRACK_VARS_SERVER]) == IS_ARRAY || zend_is_auto_global_str(ZEND_STRL("_SERVER")))) {
+		tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), name, name_len);
+		if (tmp && Z_TYPE_P(tmp) == IS_STRING && Z_STRLEN_P(tmp) > 0) {
+			res = strdup(Z_STRVAL_P(tmp));
+			return res;
+		}
 	}
 
 	res = strdup("unknown");
@@ -575,7 +577,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		if (client->server_name) {
 			request->server_name = strdup(client->server_name);
 		} else {
-			request->server_name = _pinba_fetch_global_var("SERVER_NAME", sizeof("SERVER_NAME"));
+			request->server_name = _pinba_fetch_global_var("SERVER_NAME", sizeof("SERVER_NAME")-1);
 		}
 
 		if (custom_script_name) {
@@ -583,7 +585,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		} else if (client->script_name) {
 			request->script_name = strdup(client->script_name);
 		} else {
-			request->script_name = _pinba_fetch_global_var("SCRIPT_NAME", sizeof("SCRIPT_NAME"));
+			request->script_name = _pinba_fetch_global_var("SCRIPT_NAME", sizeof("SCRIPT_NAME")-1);
 		}
 
 		tags = &client->tags;
@@ -651,7 +653,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		if (PINBA_G(server_name)) {
 			request->server_name = strdup(PINBA_G(server_name));
 		} else {
-			request->server_name = _pinba_fetch_global_var("SERVER_NAME", sizeof("SERVER_NAME"));
+			request->server_name = _pinba_fetch_global_var("SERVER_NAME", sizeof("SERVER_NAME")-1);
 		}
 
 		if (custom_script_name) {
@@ -659,7 +661,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 		} else if (PINBA_G(script_name)) {
 			request->script_name = strdup(PINBA_G(script_name));
 		} else {
-			request->script_name = _pinba_fetch_global_var("SCRIPT_NAME", sizeof("SCRIPT_NAME"));
+			request->script_name = _pinba_fetch_global_var("SCRIPT_NAME", sizeof("SCRIPT_NAME")-1);
 		}
 
 		tags = &PINBA_G(tags);
@@ -2585,16 +2587,16 @@ static PHP_RINIT_FUNCTION(pinba)
 	gethostname(PINBA_G(host_name), sizeof(PINBA_G(host_name)));
 	PINBA_G(host_name)[sizeof(PINBA_G(host_name)) - 1] = '\0';
 
-	zend_is_auto_global_str("_SERVER", sizeof("_SERVER") - 1);
+	if (zend_is_auto_global_str("_SERVER", sizeof("_SERVER") - 1)) {
+		tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), "SCRIPT_NAME", sizeof("SCRIPT_NAME")-1);
+		if (tmp && Z_TYPE_P(tmp) == IS_STRING && Z_STRLEN_P(tmp) > 0) {
+			PINBA_G(script_name) = estrndup(Z_STRVAL_P(tmp), Z_STRLEN_P(tmp));
+		}
 
-	tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), "SCRIPT_NAME", sizeof("SCRIPT_NAME")-1);
-	if (tmp && Z_TYPE_P(tmp) == IS_STRING && Z_STRLEN_P(tmp) > 0) {
-		PINBA_G(script_name) = estrndup(Z_STRVAL_P(tmp), Z_STRLEN_P(tmp));
-	}
-
-	tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), "SERVER_NAME", sizeof("SERVER_NAME")-1);
-	if (tmp != NULL && Z_TYPE_P(tmp) == IS_STRING && Z_STRLEN_P(tmp) > 0) {
-		PINBA_G(server_name) = estrndup(Z_STRVAL_P(tmp), Z_STRLEN_P(tmp));
+		tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), "SERVER_NAME", sizeof("SERVER_NAME")-1);
+		if (tmp != NULL && Z_TYPE_P(tmp) == IS_STRING && Z_STRLEN_P(tmp) > 0) {
+			PINBA_G(server_name) = estrndup(Z_STRVAL_P(tmp), Z_STRLEN_P(tmp));
+		}
 	}
 
 	return SUCCESS;
