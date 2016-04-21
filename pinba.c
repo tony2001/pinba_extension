@@ -437,7 +437,7 @@ static size_t sapi_ub_write_counter(const char *str, size_t length) /* {{{ */
 static int php_pinba_init_socket(pinba_collector *collectors, int n_collectors) /* {{{ */
 {
 	struct addrinfo *ai_list;
-	struct addrinfo *ai_ptr;
+	struct addrinfo *ai_ptr = NULL;
 	struct addrinfo  ai_hints;
 	int i;
 	int fd;
@@ -540,7 +540,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 	Pinba__Request *request;
 	char hostname[256], *tag_value;
 	pinba_req_data *req_data = &PINBA_G(tmp_req_data);
-	int timers_num, tags_cnt, *tag_ids, *tag_value_ids, i, n;
+	int timers_num, tags_cnt, *tag_ids = NULL, *tag_value_ids = NULL, i, n;
 	size_t id;
 
 	request = malloc(sizeof(Pinba__Request));
