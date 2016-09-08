@@ -1,4 +1,4 @@
-Pinba 1.1.0      ?? ??? ????
+Pinba 1.1.0      09 Sep 2016
 ----------------------------
 - Added flag to reset request data when doing pinba_flush(), use PINBA_FLUSH_RESET_DATA constant for that.
 - Added pinba.auto_flush INI option to control automatic flush at the end of each request. Default value is On.
