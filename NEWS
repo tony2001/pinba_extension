@@ -9,6 +9,7 @@ Pinba 1.1.0      ?? ??? ????
 - Added error message on hostname resolution failure.
 - Added rusage to timers (it was actually there, but wasn't sent to the server).
 - Fixed issue #9 (php segfault on shutdown)
+- Updated the sources to support PHP7 API, PHP5 version moved to branch 'php5'.
 
 Pinba 1.0.0      17 Aug 2012
 ----------------------------
