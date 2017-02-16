@@ -934,6 +934,29 @@ static inline void php_pinba_req_data_dtor(pinba_req_data *record) /* {{{ */
 }
 /* }}} */
 
+static inline void php_pinba_reset_data(void) /* {{{ */
+{
+	struct timeval t;
+	struct rusage u;
+
+	if (gettimeofday(&t, 0) == 0) {
+		timeval_cvt(&(PINBA_G(tmp_req_data).req_start), &t);
+	}
+
+	if (getrusage(RUSAGE_SELF, &u) == 0) {
+		timeval_cvt(&(PINBA_G(tmp_req_data).ru_utime), &u.ru_utime);
+		timeval_cvt(&(PINBA_G(tmp_req_data).ru_stime), &u.ru_stime);
+	}
+
+	PINBA_G(tmp_req_data).doc_size = 0;
+	PINBA_G(tmp_req_data).mem_peak_usage= 0;
+	PINBA_G(tmp_req_data).req_count = 0;
+
+	zend_hash_clean(&PINBA_G(tags));
+	zend_hash_clean(&PINBA_G(timers));
+}
+/* }}} */
+
 static void php_pinba_flush_data(const char *custom_script_name, long flags) /* {{{ */
 {
 
@@ -958,23 +981,7 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags) /* 
 	php_pinba_req_data_send(NULL, custom_script_name, flags);
 
 	if (flags & PINBA_FLUSH_RESET_DATA) {
-		struct timeval t;
-		struct rusage u;
-
-		if (gettimeofday(&t, 0) == 0) {
-			timeval_cvt(&(PINBA_G(tmp_req_data).req_start), &t);
-		}
-
-		if (getrusage(RUSAGE_SELF, &u) == 0) {
-			timeval_cvt(&(PINBA_G(tmp_req_data).ru_utime), &u.ru_utime);
-			timeval_cvt(&(PINBA_G(tmp_req_data).ru_stime), &u.ru_stime);
-		}
-
-		PINBA_G(tmp_req_data).doc_size = 0;
-		PINBA_G(tmp_req_data).mem_peak_usage= 0;
-		PINBA_G(tmp_req_data).req_count = 0;
-
-		zend_hash_clean(&PINBA_G(tags));
+		php_pinba_reset_data();
 	}
 
 	PINBA_G(timers_stopped) = 0;
@@ -1536,6 +1543,14 @@ static PHP_FUNCTION(pinba_flush)
 	}
 
 	RETURN_TRUE;
+}
+/* }}} */
+
+/* {{{ proto void pinba_reset()
+   Reset the data */
+static PHP_FUNCTION(pinba_reset)
+{
+	php_pinba_reset_data();
 }
 /* }}} */
 
@@ -2297,6 +2312,9 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_flush, 0, 0, 0)
 	ZEND_ARG_INFO(0, flags)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_reset, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_pinba_get_info, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
@@ -2366,6 +2384,7 @@ zend_function_entry pinba_functions[] = {
 	PINBA_FUNC(pinba_timer_tags_merge)
 	PINBA_FUNC(pinba_timer_tags_replace)
 	PINBA_FUNC(pinba_flush)
+	PINBA_FUNC(pinba_reset)
 	PINBA_FUNC(pinba_get_info)
 	PINBA_FUNC(pinba_get_data)
 	PINBA_FUNC(pinba_timer_get_info)
