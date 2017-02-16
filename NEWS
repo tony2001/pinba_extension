@@ -1,3 +1,7 @@
+Pinba X.X.X      ?? ??? ????
+----------------------------
+- Added pinba_reset() function to be able to reset current data without calling pinba_flush().
+
 Pinba 1.1.0      09 Sep 2016
 ----------------------------
 - Added flag to reset request data when doing pinba_flush(), use PINBA_FLUSH_RESET_DATA constant for that.
