@@ -263,7 +263,7 @@ static inline int php_pinba_parse_server(char *address, char **host, char **port
 }
 /* }}} */
 
-static inline int php_pinba_timer_stop(pinba_timer_t *t) /* {{{ */
+static inline int php_pinba_timer_stop(pinba_timer_t *t, struct timeval *pnow, struct rusage *pu) /* {{{ */
 {
 	struct timeval now;
 	struct rusage u, tmp;
@@ -272,15 +272,28 @@ static inline int php_pinba_timer_stop(pinba_timer_t *t) /* {{{ */
 		return FAILURE;
 	}
 
-	gettimeofday(&now, 0);
+	if (pnow) {
+		now = *pnow;
+	} else {
+		if (gettimeofday(&now, 0) != 0) {
+			return FAILURE;
+		}
+	}
+
 	timersub(&now, &t->start, &t->value);
 
-	if (getrusage(RUSAGE_SELF, &u) == 0) {
-		timersub(&u.ru_utime, &t->tmp_ru_utime, &tmp.ru_utime);
-		timersub(&u.ru_stime, &t->tmp_ru_stime, &tmp.ru_stime);
-		timeradd(&t->ru_utime, &tmp.ru_utime, &t->ru_utime);
-		timeradd(&t->ru_stime, &tmp.ru_stime, &t->ru_stime);
+	if (pu) {
+		u = *pu;
+	} else {
+		if (getrusage(RUSAGE_SELF, &u) != 0) {
+			return FAILURE;
+		}
 	}
+
+	timersub(&u.ru_utime, &t->tmp_ru_utime, &tmp.ru_utime);
+	timersub(&u.ru_stime, &t->tmp_ru_stime, &tmp.ru_stime);
+	timeradd(&t->ru_utime, &tmp.ru_utime, &t->ru_utime);
+	timeradd(&t->ru_stime, &tmp.ru_stime, &t->ru_stime);
 
 	t->started = 0;
 	return SUCCESS;
@@ -382,7 +395,7 @@ static void php_timer_resource_dtor(zend_resource *entry) /* {{{ */
 {
 	pinba_timer_t *t = (pinba_timer_t *)entry->ptr;
 
-	php_pinba_timer_stop(t);
+	php_pinba_timer_stop(t, NULL, NULL);
 	/* php_pinba_timer_dtor(t); all timers are destroyed at once */
 
 	/* but we don't need the user data anymore */
@@ -399,17 +412,19 @@ static void php_timer_resource_dtor(zend_resource *entry) /* {{{ */
 }
 /* }}} */
 
-static int php_pinba_timer_stop_helper(zval *zv, void *arg) /* {{{ */
+static int php_pinba_timer_stop_helper(zval *zv, int num_args, va_list args, zend_hash_key *hash_key) /* {{{ */
 {
-	long flags = (long)arg;
-
 	if (Z_RES_TYPE_P(zv) == le_pinba_timer) {
+		long flags = va_arg(args, long);
+		struct timeval *now = va_arg(args, struct timeval *);
+		struct rusage *u = va_arg(args, struct rusage *);
+
 		pinba_timer_t *t = (pinba_timer_t *)Z_RES_VAL_P(zv);
 
 		if (t->deleted || ((flags & PINBA_FLUSH_ONLY_STOPPED_TIMERS) != 0 && t->started)) {
 			return ZEND_HASH_APPLY_KEEP;
 		} else {
-			php_pinba_timer_stop(t);
+			php_pinba_timer_stop(t, now, u);
 			t->deleted = 1; /* ignore next time */
 		}
 
@@ -959,9 +974,15 @@ static inline void php_pinba_reset_data(void) /* {{{ */
 
 static void php_pinba_flush_data(const char *custom_script_name, long flags) /* {{{ */
 {
+	struct timeval now;
+	struct rusage u;
+
+	if (gettimeofday(&now, 0) != 0 || getrusage(RUSAGE_SELF, &u) != 0) {
+		return;
+	}
 
 	/* stop all running timers */
-	zend_hash_apply_with_argument(&EG(regular_list), (apply_func_arg_t) php_pinba_timer_stop_helper, (void *)flags);
+	zend_hash_apply_with_arguments(&EG(regular_list), (apply_func_args_t) php_pinba_timer_stop_helper, 3, (void *)flags, (void *)&now, (void *)&u);
 
 	/* prevent any further access to the timers */
 	PINBA_G(timers_stopped) = 1;
@@ -1085,7 +1106,7 @@ static pinba_timer_t *php_pinba_timer_ctor(pinba_timer_tag_t **tags, int tags_nu
 }
 /* }}} */
 
-static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info) /* {{{ */
+static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info, struct timeval *pnow) /* {{{ */
 {
 	zval tags;
 	pinba_timer_tag_t *tag;
@@ -1095,7 +1116,12 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info) /* {{{ */
 	array_init(info);
 
 	if (t->started) {
-		gettimeofday(&tmp, 0);
+		if (pnow) {
+			tmp = *pnow;
+		} else {
+			gettimeofday(&tmp, 0);
+		}
+
 		timersub(&tmp, &t->start, &tmp);
 		timeradd(&t->value, &tmp, &tmp);
 	} else {
@@ -1327,7 +1353,7 @@ static PHP_FUNCTION(pinba_timer_stop)
 		RETURN_FALSE;
 	}
 
-	php_pinba_timer_stop(t);
+	php_pinba_timer_stop(t, NULL, NULL);
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1346,7 +1372,7 @@ static PHP_FUNCTION(pinba_timer_delete)
 	PHP_ZVAL_TO_TIMER(timer, t);
 
 	if (t->started) {
-		php_pinba_timer_stop(t);
+		php_pinba_timer_stop(t, NULL, NULL);
 	}
 
 	t->deleted = 1;
@@ -1619,6 +1645,7 @@ static PHP_FUNCTION(pinba_get_info)
 	add_assoc_string(return_value, "hostname", PINBA_G(host_name));
 
 	array_init(&timers);
+	gettimeofday(&tmp, 0);
 
 	for (zend_hash_internal_pointer_reset_ex(&EG(regular_list), &pos);
 			(zv = zend_hash_get_current_data_ex((&EG(regular_list)), &pos)) != NULL;
@@ -1631,7 +1658,7 @@ static PHP_FUNCTION(pinba_get_info)
 				continue;
 			}
 
-			php_pinba_get_timer_info(t, &timer_info);
+			php_pinba_get_timer_info(t, &timer_info, &tmp);
 			add_next_index_zval(&timers, &timer_info);
 		}
 	}
@@ -1694,7 +1721,7 @@ static PHP_FUNCTION(pinba_timer_get_info)
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
-	php_pinba_get_timer_info(t, return_value);
+	php_pinba_get_timer_info(t, return_value, NULL);
 }
 /* }}} */
 
@@ -1705,9 +1732,15 @@ static PHP_FUNCTION(pinba_timers_stop)
 	zval *zv;
 	pinba_timer_t *t;
 	HashPosition pos;
+	struct timeval now;
+	struct rusage u;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "") != SUCCESS) {
 		return;
+	}
+
+	if (gettimeofday(&now, 0) != 0 || getrusage(RUSAGE_SELF, &u) != 0) {
+		RETURN_FALSE;
 	}
 
 	for (zend_hash_internal_pointer_reset_ex(&EG(regular_list), &pos);
@@ -1717,7 +1750,7 @@ static PHP_FUNCTION(pinba_timers_stop)
 
 		if (rsrc->type == le_pinba_timer) {
 			t = (pinba_timer_t *)rsrc->ptr;
-			php_pinba_timer_stop(t);
+			php_pinba_timer_stop(t, &now, &u);
 		}
 	}
 	RETURN_TRUE;
