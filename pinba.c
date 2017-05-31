@@ -438,6 +438,22 @@ static int php_pinba_timer_stop_helper(zval *zv, int num_args, va_list args, zen
 }
 /* }}} */
 
+static int php_pinba_timer_delete_helper(zval *zv) /* {{{ */
+{
+	if (Z_RES_TYPE_P(zv) == le_pinba_timer) {
+		pinba_timer_t *t = (pinba_timer_t *)Z_RES_VAL_P(zv);
+
+		if (t->deleted) {
+			/* only delete from the list if there are no references to this zval */
+			if (GC_REFCOUNT(Z_COUNTED_P(zv)) == 1) {
+				return ZEND_HASH_APPLY_REMOVE;
+			}
+		}
+	}
+	return ZEND_HASH_APPLY_KEEP;
+}
+/* }}} */
+
 static size_t sapi_ub_write_counter(const char *str, size_t length) /* {{{ */
 {
 	PINBA_G(tmp_req_data).doc_size += length;
@@ -990,6 +1006,7 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags) /* 
 	if (!PINBA_G(enabled) || PINBA_G(n_collectors) == 0) {
 		/* disabled or no collectors defined, exit */
 		zend_hash_clean(&PINBA_G(timers));
+		zend_hash_apply(&EG(regular_list), (apply_func_t) php_pinba_timer_delete_helper);
 		PINBA_G(timers_stopped) = 0;
 		return;
 	}
@@ -1004,6 +1021,9 @@ static void php_pinba_flush_data(const char *custom_script_name, long flags) /* 
 	if (flags & PINBA_FLUSH_RESET_DATA) {
 		php_pinba_reset_data();
 	}
+
+	/* delete all stopped timers */
+	zend_hash_apply(&EG(regular_list), (apply_func_t) php_pinba_timer_delete_helper);
 
 	PINBA_G(timers_stopped) = 0;
 	zend_hash_clean(&PINBA_G(timers));
