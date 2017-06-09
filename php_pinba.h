@@ -33,6 +33,8 @@ extern zend_module_entry pinba_module_entry;
 #define PINBA_COLLECTORS_MAX 8
 #define PHP_PINBA_VERSION "1.1.2-dev"
 
+#define PINBA_COMPRESSION_THRESHOLD_DEFAULT "300"
+
 typedef struct _pinba_req_data { /* {{{ */
 	char *server_name;
 	char *script_name;
@@ -79,6 +81,8 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	zend_bool enabled;
 	zend_bool auto_flush;
 	time_t resolve_interval; /* seconds */
+	zend_bool compression;
+	zend_long compression_threshold;
 ZEND_END_MODULE_GLOBALS(pinba)
 /* }}} */
 

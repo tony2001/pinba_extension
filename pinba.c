@@ -42,6 +42,10 @@
 # include <malloc.h>
 #endif
 
+#ifdef HAVE_PINBA_LZ4
+# include <lz4.h>
+#endif
+
 #include "php_pinba.h"
 
 #include "pinba.pb-c.h"
@@ -94,6 +98,12 @@ size_t (*old_sapi_ub_write) (const char *, size_t);
 #define PINBA_AUTO_FLUSH (1<<3)
 
 static HashTable resolver_cache;
+
+#define PINBA_DATA_SIZE_LIMIT 65536
+
+#define PINBA_DATA_HEADER_SIZE 4
+#define PINBA_DATA_VERSION 1
+#define PINBA_DATA_FLAG_LZ4_COMPRESSED (1<<0)
 
 typedef struct _pinba_timer_tag { /* {{{ */
 	char *name;
@@ -927,6 +937,56 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 #define PINBA_FREE_BUFFER() \
 		PROTOBUF_C_BUFFER_SIMPLE_CLEAR(&_buf)
 
+static inline char *php_pinba_pack_data(Pinba__Request *request, size_t *result_len) /* {{{ */
+{
+	char *data, *result_buf;
+	int data_len, result_buf_len;
+	unsigned int header;
+
+	PINBA_PACK(request, data, data_len);
+
+	if (data_len > PINBA_DATA_SIZE_LIMIT) {
+		php_error_docref(NULL, E_WARNING, "packet data too long (%d bytes, while limit is %d bytes)", data_len, PINBA_DATA_SIZE_LIMIT);
+		PINBA_FREE_BUFFER();
+		return NULL;
+	}
+
+	/* <version:4><flags:12><data_length:16> */
+	header |= data_len;
+	header = PINBA_DATA_VERSION << 28;
+
+#ifdef HAVE_PINBA_LZ4
+	if (PINBA_G(compression) && data_len > PINBA_G(compression_threshold)) {
+		int compressed_len;
+
+		result_buf_len = LZ4_compressBound(data_len);
+		result_buf = safe_emalloc(result_buf_len, 1, PINBA_DATA_HEADER_SIZE + 1);
+
+		header |= PINBA_DATA_FLAG_LZ4_COMPRESSED << 16;
+		compressed_len = LZ4_compress_default(data, result_buf + PINBA_DATA_HEADER_SIZE, data_len, result_buf_len);
+
+		if (compressed_len <= 0) {
+			php_error_docref(NULL, E_WARNING, "data compression failed");
+			efree(result_buf);
+			PINBA_FREE_BUFFER();
+			return NULL;
+		}
+
+		*result_len = PINBA_DATA_HEADER_SIZE + compressed_len;
+	} else
+#endif
+	{
+		result_buf = safe_emalloc(data_len, 1, PINBA_DATA_HEADER_SIZE + 1);
+		memcpy(result_buf + PINBA_DATA_HEADER_SIZE, data, data_len);
+		*result_len = PINBA_DATA_HEADER_SIZE + data_len;
+	}
+
+	PINBA_FREE_BUFFER();
+	memcpy(result_buf, &header, sizeof(uint32_t));
+	return result_buf;
+}
+/* }}} */
+
 static inline int php_pinba_req_data_send(pinba_client_t *client, const char *custom_script_name, int flags) /* {{{ */
 {
 	int ret = SUCCESS;
@@ -935,17 +995,23 @@ static inline int php_pinba_req_data_send(pinba_client_t *client, const char *cu
 	request = php_create_pinba_packet(client, custom_script_name, flags);
 
 	if (request) {
-		int i, n_collectors, data_len;
+		int i, n_collectors;
 		ssize_t sent;
-		pinba_collector *collectors;
 		char *data;
+		size_t data_len;
+		pinba_collector *collectors;
 
 		if (client) {
 			/* disable AUTO_FLUSH if data has been sent manually */
 			client->data_sent = 1;
 		}
 
-		PINBA_PACK(request, data, data_len);
+		data = php_pinba_pack_data(request, &data_len);
+		if (!data) {
+			pinba__request__free_unpacked(request, NULL);
+			return FAILURE;
+		}
+		pinba__request__free_unpacked(request, NULL);
 
 		if (client) {
 			n_collectors = client->n_collectors;
@@ -969,9 +1035,7 @@ static inline int php_pinba_req_data_send(pinba_client_t *client, const char *cu
 				ret = FAILURE;
 			}
 		}
-
-		PINBA_FREE_BUFFER();
-		pinba__request__free_unpacked(request, NULL);
+		efree(data);
 	} else {
 		ret = FAILURE;
 	}
@@ -1768,7 +1832,7 @@ static PHP_FUNCTION(pinba_get_data)
 	Pinba__Request *request;
 	long flags = 0;
 	char *data;
-	int data_len;
+	size_t data_len;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &flags) != SUCCESS) {
 		return;
@@ -1779,10 +1843,14 @@ static PHP_FUNCTION(pinba_get_data)
 		RETURN_FALSE;
 	}
 
-	PINBA_PACK(request, data, data_len);
+	data = php_pinba_pack_data(request, &data_len);
+	if (!data) {
+		RETURN_FALSE;
+	}
+
 	RETVAL_STRINGL(data, data_len);
-	PINBA_FREE_BUFFER();
 	pinba__request__free_unpacked(request, NULL);
+	efree(data);
 }
 /* }}} */
 
@@ -2369,7 +2437,7 @@ static PHP_METHOD(PinbaClient, getData)
 	Pinba__Request *request;
 	long flags = 0;
 	char *data;
-	int data_len;
+	size_t data_len;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &flags) != SUCCESS) {
 		return;
@@ -2381,10 +2449,15 @@ static PHP_METHOD(PinbaClient, getData)
 		RETURN_FALSE;
 	}
 
-	PINBA_PACK(request, data, data_len);
+	data = php_pinba_pack_data(request, &data_len);
+	if (!data) {
+		RETURN_FALSE;
+	}
+
 	RETVAL_STRINGL(data, data_len);
-	PINBA_FREE_BUFFER();
+
 	pinba__request__free_unpacked(request, NULL);
+	efree(data);
 }
 /* }}} */
 
@@ -2640,6 +2713,10 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("pinba.resolve_interval", "60", PHP_INI_ALL, OnUpdateLongGEZero, resolve_interval, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.auto_flush", "1", PHP_INI_ALL, OnUpdateBool, auto_flush, zend_pinba_globals, pinba_globals)
+#ifdef HAVE_PINBA_LZ4
+	STD_PHP_INI_ENTRY("pinba.compression", "1", PHP_INI_ALL, OnUpdateBool, compression, zend_pinba_globals, pinba_globals)
+	STD_PHP_INI_ENTRY("pinba.compression_threshold", PINBA_COMPRESSION_THRESHOLD_DEFAULT, PHP_INI_ALL, OnUpdateLong, compression_threshold, zend_pinba_globals, pinba_globals)
+#endif
 PHP_INI_END()
 /* }}} */
 
@@ -2794,6 +2871,12 @@ static PHP_MINFO_FUNCTION(pinba)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "Pinba support", "enabled");
 	php_info_print_table_row(2, "Extension version", PHP_PINBA_VERSION);
+#ifdef HAVE_PINBA_LZ4
+	php_info_print_table_row(2, "LZ4 compression support", "enabled");
+	php_info_print_table_row(2, "LZ4 version", LZ4_versionString());
+#else
+	php_info_print_table_row(2, "LZ4 compression support", "disabled");
+#endif
 	php_info_print_table_end();
 
 	DISPLAY_INI_ENTRIES();
