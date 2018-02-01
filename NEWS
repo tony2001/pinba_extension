@@ -1,5 +1,6 @@
-Pinba X.X.X      ?? ??? ????
+Pinba 1.1.1      01 Feb 2018
 ----------------------------
+- Fixed a bug causing incorrect timer rusage data to be sent.
 - Added pinba_reset() function to be able to reset current data without calling pinba_flush().
 
 Pinba 1.1.0      09 Sep 2016
