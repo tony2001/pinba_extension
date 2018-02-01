@@ -761,7 +761,13 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 			old_t = zend_hash_str_find_ptr(&timers_uniq, hashed_tags, hashed_tags_len);
 			if (old_t != NULL) {
 				timeradd(&old_t->value, &t->value, &old_t->value);
-				old_t->hit_count++;
+				timeradd(&old_t->ru_utime, &t->ru_utime, &old_t->ru_utime);
+				timeradd(&old_t->ru_stime, &t->ru_stime, &old_t->ru_stime);
+				if (t->hit_count) {
+					old_t->hit_count += t->hit_count;
+				} else {
+					old_t->hit_count++;
+				}
 			} else {
 				zend_hash_str_add_ptr(&timers_uniq, hashed_tags, hashed_tags_len, t);
 			}
