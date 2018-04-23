@@ -1292,7 +1292,11 @@ static PHP_FUNCTION(pinba_timer_start)
 		timeval_cvt(&t->tmp_ru_stime, &u.ru_stime);
 	}
 	/* refcount++ so that the timer is shut down only on request finish if not stopped manually */
+#if PHP_VERSION_ID < 70300
 	GC_REFCOUNT(rsrc)++;
+#else
+	GC_ADDREF(rsrc);
+#endif
 	RETURN_RES(rsrc);
 }
 /* }}} */
@@ -1351,7 +1355,11 @@ static PHP_FUNCTION(pinba_timer_add)
 	t->rsrc_id = rsrc->handle;
 
 	/* refcount++ so that the timer is shut down only on request finish if not stopped manually */
+#if PHP_VERSION_ID < 70300
 	GC_REFCOUNT(rsrc)++;
+#else
+	GC_ADDREF(rsrc);
+#endif
 	RETURN_RES(rsrc);
 }
 /* }}} */
@@ -1808,7 +1816,11 @@ static PHP_FUNCTION(pinba_timers_get)
 				continue;
 			}
 			/* refcount++ */
+#if PHP_VERSION_ID < 70300
 			GC_REFCOUNT(rsrc)++;
+#else
+			GC_ADDREF(rsrc);
+#endif
 			add_next_index_resource(return_value, rsrc);
 		}
 	}
