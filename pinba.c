@@ -1301,7 +1301,7 @@ static PHP_FUNCTION(pinba_timer_start)
 }
 /* }}} */
 
-/* {{{ proto resource pinba_timer_add(array tags, float value[, array data])
+/* {{{ proto resource pinba_timer_add(array tags, float value[[, array data,], int hit_count])
    Create user timer with a value */
 static PHP_FUNCTION(pinba_timer_add)
 {
@@ -1313,13 +1313,14 @@ static PHP_FUNCTION(pinba_timer_add)
 	double value;
 	unsigned long time_l;
 	zend_resource *rsrc;
+	long hit_count = 1;
 
 	if (PINBA_G(timers_stopped)) {
 		php_error_docref(NULL, E_WARNING, "all timers have already been stopped");
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "hd|a", &tags_array, &value, &data) != SUCCESS) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "hd|al", &tags_array, &value, &data, &hit_count) != SUCCESS) {
 		return;
 	}
 
@@ -1327,6 +1328,11 @@ static PHP_FUNCTION(pinba_timer_add)
 
 	if (!tags_num) {
 		php_error_docref(NULL, E_WARNING, "tags array cannot be empty");
+		RETURN_FALSE;
+	}
+
+	if (hit_count <= 0) {
+		php_error_docref(NULL, E_WARNING, "hit_count must be greater than 0 (%ld was passed)", hit_count);
 		RETURN_FALSE;
 	}
 
@@ -1341,12 +1347,12 @@ static PHP_FUNCTION(pinba_timer_add)
 
 	t = php_pinba_timer_ctor(tags, tags_num);
 
-	if (data) {
+	if (data && zend_hash_num_elements(Z_ARRVAL_P(data)) > 0) {
 		ZVAL_DUP(&t->data, data);
 	}
 
 	t->started = 0;
-	t->hit_count = 1;
+	t->hit_count = hit_count;
 	time_l = (unsigned long)(value * 1000000.0);
 	t->value.tv_sec = time_l / 1000000;
 	t->value.tv_usec = time_l % 1000000;

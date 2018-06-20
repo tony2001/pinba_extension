@@ -1,6 +1,7 @@
 Pinba 1.1.2      ?? ??? ????
 ----------------------------
 - Fixed build with PHP 7.3+
+- Added optional hit_count argument to pinba_timer_add().
 
 Pinba 1.1.1      01 Feb 2018
 ----------------------------
