@@ -50,6 +50,7 @@ typedef struct _pinba_req_data { /* {{{ */
 typedef struct _pinba_collector {
 	struct sockaddr_storage sockaddr;
 	size_t                  sockaddr_len; /* shouldn't this be socken_t ? */
+	double                  sockaddr_time; /* time last resolved */
 	char *host;
 	char *port;
 	int fd;
