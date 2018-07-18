@@ -479,49 +479,57 @@ static int php_pinba_init_socket(pinba_collector *collectors, int n_collectors) 
 		return FAILURE;
 	}
 
+	/* is using sapi time correct here? */
+	double now = sapi_get_request_time();
+
 	n_fds = 0;
 	for (i = 0; i < n_collectors; i++) {
 		pinba_collector *collector = &collectors[i];
 
-		memset(&ai_hints, 0, sizeof(ai_hints));
-		ai_hints.ai_flags     = 0;
-#ifdef AI_ADDRCONFIG
-		ai_hints.ai_flags    |= AI_ADDRCONFIG;
-#endif
-		ai_hints.ai_family    = AF_UNSPEC;
-		ai_hints.ai_socktype  = SOCK_DGRAM;
-		ai_hints.ai_addr      = NULL;
-		ai_hints.ai_canonname = NULL;
-		ai_hints.ai_next      = NULL;
+		/* re-resolve only if never resolved (fd < 0) or resolved more than 60sec ago */
+		/* FIXME: make 60sec configureable */
+		if ((collector->fd < 0) || ((now - collector->sockaddr_time) > 60.0)) {
+			memset(&ai_hints, 0, sizeof(ai_hints));
+			ai_hints.ai_flags     = 0;
+	#ifdef AI_ADDRCONFIG
+			ai_hints.ai_flags    |= AI_ADDRCONFIG;
+	#endif
+			ai_hints.ai_family    = AF_UNSPEC;
+			ai_hints.ai_socktype  = SOCK_DGRAM;
+			ai_hints.ai_addr      = NULL;
+			ai_hints.ai_canonname = NULL;
+			ai_hints.ai_next      = NULL;
 
-		ai_list = NULL;
-		status = getaddrinfo(collector->host, collector->port, &ai_hints, &ai_list);
-		fd = -1; /* need to put -1 into collector->fd */
-		if (status != 0) {
-			php_error_docref(NULL, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", collector->host, gai_strerror(status));
-		}
-		else {
-			for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
-				fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
-				if (fd >= 0) {
-					break;
+			ai_list = NULL;
+			status = getaddrinfo(collector->host, collector->port, &ai_hints, &ai_list);
+			fd = -1; /* need to put -1 into collector->fd */
+			if (status != 0) {
+				php_error_docref(NULL, E_WARNING, "failed to resolve Pinba server hostname '%s': %s", collector->host, gai_strerror(status));
+			}
+			else {
+				for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
+					fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
+					if (fd >= 0) {
+						break;
+					}
 				}
 			}
+
+			if (collector->fd >= 0) {
+				close(collector->fd);
+			}
+			collector->fd = fd;
+
+			if (fd < 0) {
+				continue; /* skip this one in case others are good */
+			}
+
+			memcpy(&collector->sockaddr, ai_ptr->ai_addr, ai_ptr->ai_addrlen);
+			collector->sockaddr_len = ai_ptr->ai_addrlen;
+			collector->sockaddr_time = now;
+
+			freeaddrinfo(ai_list);
 		}
-
-		if (collector->fd >= 0) {
-			close(collector->fd);
-		}
-		collector->fd = fd;
-
-		if (fd < 0) {
-			continue; /* skip this one in case others are good */
-		}
-
-		memcpy(&collector->sockaddr, ai_ptr->ai_addr, ai_ptr->ai_addrlen);
-		collector->sockaddr_len = ai_ptr->ai_addrlen;
-
-		freeaddrinfo(ai_list);
 
 		n_fds++;
 	}
@@ -2066,6 +2074,7 @@ static PHP_METHOD(PinbaClient, __construct)
 		new_collector->host = strdup(host);
 		new_collector->port = (port == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(port);
 		new_collector->fd = -1; /* set invalid fd */
+		new_collector->sockaddr_time = 0.0; /* never resolved */
 		efree(address_copy);
 	}
 }
@@ -2570,6 +2579,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		new_collector->host = strdup(new_node);
 		new_collector->port = (new_service == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(new_service);
 		new_collector->fd = -1; /* set invalid fd */
+		new_collector->sockaddr_time = 0.0; /* never resolved */
 	}
 
 	free(copy);
@@ -2631,6 +2641,11 @@ static PHP_MINIT_FUNCTION(pinba)
 	pinba_client_handlers.free_obj = pinba_client_free_storage;
 	pinba_client_handlers.clone_obj = NULL;
 	pinba_client_handlers.offset = XtOffsetOf(pinba_client_t, std);
+
+	/* init stuff that is not going to change for the lifetime of the worker */
+	gethostname(PINBA_G(host_name), sizeof(PINBA_G(host_name)));
+	PINBA_G(host_name)[sizeof(PINBA_G(host_name)) - 1] = '\0';
+
 	return SUCCESS;
 }
 /* }}} */
@@ -2679,9 +2694,6 @@ static PHP_RINIT_FUNCTION(pinba)
 
 	PINBA_G(server_name) = NULL;
 	PINBA_G(script_name) = NULL;
-
-	gethostname(PINBA_G(host_name), sizeof(PINBA_G(host_name)));
-	PINBA_G(host_name)[sizeof(PINBA_G(host_name)) - 1] = '\0';
 
 	if (zend_is_auto_global_str("_SERVER", sizeof("_SERVER") - 1)) {
 		tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), "SCRIPT_NAME", sizeof("SCRIPT_NAME")-1);
