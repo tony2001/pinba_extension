@@ -50,7 +50,7 @@ typedef struct _pinba_req_data { /* {{{ */
 typedef struct _pinba_collector {
 	struct sockaddr_storage sockaddr;
 	size_t                  sockaddr_len; /* shouldn't this be socken_t ? */
-	double                  sockaddr_time; /* time last resolved */
+	time_t                  sockaddr_time; /* time last resolved */
 	char *host;
 	char *port;
 	int fd;
@@ -75,6 +75,7 @@ ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
 	zend_bool in_rshutdown;
 	zend_bool enabled;
 	zend_bool auto_flush;
+	time_t resolve_interval; /* seconds */
 ZEND_END_MODULE_GLOBALS(pinba)
 /* }}} */
 
