@@ -479,16 +479,14 @@ static int php_pinba_init_socket(pinba_collector *collectors, int n_collectors) 
 		return FAILURE;
 	}
 
-	/* is using sapi time correct here? */
-	double now = sapi_get_request_time();
+	const time_t now = time(NULL);
 
 	n_fds = 0;
 	for (i = 0; i < n_collectors; i++) {
 		pinba_collector *collector = &collectors[i];
 
-		/* re-resolve only if never resolved (fd < 0) or resolved more than 60sec ago */
-		/* FIXME: make 60sec configureable */
-		if ((collector->fd < 0) || ((now - collector->sockaddr_time) > 60.0)) {
+		/* re-resolve only if never resolved (fd < 0) or resolved more than N sec ago */
+		if ((collector->fd < 0) || ((now - collector->sockaddr_time) > PINBA_G(resolve_interval))) {
 			memset(&ai_hints, 0, sizeof(ai_hints));
 			ai_hints.ai_flags     = 0;
 	#ifdef AI_ADDRCONFIG
@@ -2074,7 +2072,7 @@ static PHP_METHOD(PinbaClient, __construct)
 		new_collector->host = strdup(host);
 		new_collector->port = (port == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(port);
 		new_collector->fd = -1; /* set invalid fd */
-		new_collector->sockaddr_time = 0.0; /* never resolved */
+		new_collector->sockaddr_time = 0; /* never resolved */
 		efree(address_copy);
 	}
 }
@@ -2579,7 +2577,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
 		new_collector->host = strdup(new_node);
 		new_collector->port = (new_service == NULL) ? strdup(PINBA_COLLECTOR_DEFAULT_PORT) : strdup(new_service);
 		new_collector->fd = -1; /* set invalid fd */
-		new_collector->sockaddr_time = 0.0; /* never resolved */
+		new_collector->sockaddr_time = 0; /* never resolved */
 	}
 
 	free(copy);
@@ -2593,6 +2591,7 @@ static PHP_INI_MH(OnUpdateCollectorAddress) /* {{{ */
  */
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("pinba.server", NULL, PHP_INI_ALL, OnUpdateCollectorAddress, collector_address, zend_pinba_globals, pinba_globals)
+    STD_PHP_INI_ENTRY("pinba.resolve_interval", "60", PHP_INI_ALL, OnUpdateLongGEZero, resolve_interval, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_pinba_globals, pinba_globals)
     STD_PHP_INI_ENTRY("pinba.auto_flush", "1", PHP_INI_ALL, OnUpdateBool, auto_flush, zend_pinba_globals, pinba_globals)
 PHP_INI_END()
