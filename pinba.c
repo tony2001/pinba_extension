@@ -2641,10 +2641,6 @@ static PHP_MINIT_FUNCTION(pinba)
 	pinba_client_handlers.clone_obj = NULL;
 	pinba_client_handlers.offset = XtOffsetOf(pinba_client_t, std);
 
-	/* init stuff that is not going to change for the lifetime of the worker */
-	gethostname(PINBA_G(host_name), sizeof(PINBA_G(host_name)));
-	PINBA_G(host_name)[sizeof(PINBA_G(host_name)) - 1] = '\0';
-
 	return SUCCESS;
 }
 /* }}} */
@@ -2693,6 +2689,9 @@ static PHP_RINIT_FUNCTION(pinba)
 
 	PINBA_G(server_name) = NULL;
 	PINBA_G(script_name) = NULL;
+
+	gethostname(PINBA_G(host_name), sizeof(PINBA_G(host_name)));
+	PINBA_G(host_name)[sizeof(PINBA_G(host_name)) - 1] = '\0';
 
 	if (zend_is_auto_global_str("_SERVER", sizeof("_SERVER") - 1)) {
 		tmp = zend_hash_str_find(HASH_OF(&PG(http_globals)[TRACK_VARS_SERVER]), "SCRIPT_NAME", sizeof("SCRIPT_NAME")-1);
