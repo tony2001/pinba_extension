@@ -1182,9 +1182,8 @@ static void php_pinba_get_timer_info(pinba_timer_t *t, zval *info, struct timeva
 }
 /* }}} */
 
-static void pinba_client_free_storage(zend_object *object) /* {{{ */
+static void pinba_client_object_dtor(zend_object *object) /* {{{ */
 {
-	int i;
 	pinba_client_t *client = (pinba_client_t *) php_pinba_client_object(object);
 
 	if (!client->data_sent && (client->flags & PINBA_AUTO_FLUSH) != 0) {
@@ -1192,6 +1191,13 @@ static void pinba_client_free_storage(zend_object *object) /* {{{ */
 			php_pinba_req_data_send(client, NULL, client->flags);
 		}
 	}
+}
+/* }}} */
+
+static void pinba_client_free_storage(zend_object *object) /* {{{ */
+{
+	int i;
+	pinba_client_t *client = (pinba_client_t *) php_pinba_client_object(object);
 
 	zend_object_std_dtor(&client->std);
 
@@ -2636,7 +2642,7 @@ static PHP_MINIT_FUNCTION(pinba)
 	pinba_client_ce->create_object = pinba_client_new;
 
 	memcpy(&pinba_client_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
-	pinba_client_handlers.dtor_obj = zend_objects_destroy_object;
+	pinba_client_handlers.dtor_obj = pinba_client_object_dtor;
 	pinba_client_handlers.free_obj = pinba_client_free_storage;
 	pinba_client_handlers.clone_obj = NULL;
 	pinba_client_handlers.offset = XtOffsetOf(pinba_client_t, std);
