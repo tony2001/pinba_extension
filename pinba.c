@@ -1253,7 +1253,7 @@ zend_object *pinba_client_new(zend_class_entry *ce) /* {{{ */
    Start user timer */
 static PHP_FUNCTION(pinba_timer_start)
 {
-	HashTable *tags_array;
+	zval *tags_array;
 	zval *data = NULL;
 	pinba_timer_t *t = NULL;
 	pinba_timer_tag_t **tags;
@@ -1267,11 +1267,14 @@ static PHP_FUNCTION(pinba_timer_start)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "h|al", &tags_array, &data, &hit_count) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 3)
+		Z_PARAM_ARRAY_EX(tags_array, 0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(data)
+		Z_PARAM_LONG(hit_count)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
 
-	tags_num = zend_hash_num_elements(tags_array);
+	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags_array));
 
 	if (!tags_num) {
 		php_error_docref(NULL, E_WARNING, "tags array cannot be empty");
@@ -1283,7 +1286,7 @@ static PHP_FUNCTION(pinba_timer_start)
 		RETURN_FALSE;
 	}
 
-	if (php_pinba_array_to_tags(tags_array, &tags) != SUCCESS) {
+	if (php_pinba_array_to_tags(Z_ARRVAL_P(tags_array), &tags) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
@@ -1317,7 +1320,7 @@ static PHP_FUNCTION(pinba_timer_start)
    Create user timer with a value */
 static PHP_FUNCTION(pinba_timer_add)
 {
-	HashTable *tags_array;
+	zval *tags_array;
 	zval *data = NULL;
 	pinba_timer_t *t = NULL;
 	pinba_timer_tag_t **tags;
@@ -1332,11 +1335,15 @@ static PHP_FUNCTION(pinba_timer_add)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "hd|al", &tags_array, &value, &data, &hit_count) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 4)
+		Z_PARAM_ARRAY_EX(tags_array, 0, 1)
+		Z_PARAM_DOUBLE(value)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(data)
+		Z_PARAM_LONG(hit_count)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
 
-	tags_num = zend_hash_num_elements(tags_array);
+	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags_array));
 
 	if (!tags_num) {
 		php_error_docref(NULL, E_WARNING, "tags array cannot be empty");
@@ -1348,7 +1355,7 @@ static PHP_FUNCTION(pinba_timer_add)
 		RETURN_FALSE;
 	}
 
-	if (php_pinba_array_to_tags(tags_array, &tags) != SUCCESS) {
+	if (php_pinba_array_to_tags(Z_ARRVAL_P(tags_array), &tags) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
@@ -1500,7 +1507,7 @@ static PHP_FUNCTION(pinba_timer_data_replace)
    Merge timer data with new data */
 static PHP_FUNCTION(pinba_timer_tags_merge)
 {
-	HashTable *tags;
+	zval *tags;
 	zval *timer;
 	pinba_timer_t *t;
 	pinba_timer_tag_t **new_tags;
@@ -1511,19 +1518,20 @@ static PHP_FUNCTION(pinba_timer_tags_merge)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rh", &timer, &tags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_RESOURCE(timer)
+		Z_PARAM_ARRAY_EX(tags, 0, 1)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
-	tags_num = zend_hash_num_elements(tags);
+	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags));
 
 	if (!tags_num) {
 		RETURN_TRUE;
 	}
 
-	if (php_pinba_array_to_tags(tags, &new_tags) != SUCCESS) {
+	if (php_pinba_array_to_tags(Z_ARRVAL_P(tags), &new_tags) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
@@ -1565,7 +1573,7 @@ static PHP_FUNCTION(pinba_timer_tags_merge)
    Replace timer data with new one */
 static PHP_FUNCTION(pinba_timer_tags_replace)
 {
-	HashTable *tags;
+	zval *tags;
 	zval *timer;
 	pinba_timer_t *t;
 	pinba_timer_tag_t **new_tags;
@@ -1576,20 +1584,21 @@ static PHP_FUNCTION(pinba_timer_tags_replace)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "rh", &timer, &tags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_RESOURCE(timer)
+		Z_PARAM_ARRAY_EX(tags, 0, 1)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
-	tags_num = zend_hash_num_elements(tags);
+	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags));
 
 	if (!tags_num) {
 		php_error_docref(NULL, E_WARNING, "tags array cannot be empty");
 		RETURN_TRUE;
 	}
 
-	if (php_pinba_array_to_tags(tags, &new_tags) != SUCCESS) {
+	if (php_pinba_array_to_tags(Z_ARRVAL_P(tags), &new_tags) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
@@ -2043,21 +2052,24 @@ static PHP_FUNCTION(pinba_tags_get)
     */
 static PHP_METHOD(PinbaClient, __construct)
 {
-	HashTable *servers;
+	zval *servers;
 	zval *tmp;
 	pinba_collector *new_collector;
 	pinba_client_t *client;
 	long flags = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "h|l", &servers, &flags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 2)
+		Z_PARAM_ARRAY_EX(servers, 0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(flags)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
+
 	client = Z_PINBACLIENT_P(getThis());
 	client->flags = flags;
 
-	for (zend_hash_internal_pointer_reset(servers);
-		 (tmp = zend_hash_get_current_data(servers)) != NULL;
-		 zend_hash_move_forward(servers)) {
+	for (zend_hash_internal_pointer_reset(Z_ARRVAL_P(servers));
+		 (tmp = zend_hash_get_current_data(Z_ARRVAL_P(servers))) != NULL;
+		 zend_hash_move_forward(Z_ARRVAL_P(servers))) {
 		char *host, *port, *address_copy;
 		zend_string *str = zval_get_string(tmp);
 
@@ -2138,24 +2150,25 @@ SET_METHOD_NUM(setRequestTime, request_time, double, "d");
     */
 static PHP_METHOD(PinbaClient, setRusage)
 {
-	HashTable *rusage;
+	zval *rusage;
 	pinba_client_t *client;
 	zval *tmp;
 	int i;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "h", &rusage) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ARRAY_EX(rusage, 0, 1)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
+
 	client = Z_PINBACLIENT_P(getThis());
 
-	if (zend_hash_num_elements(rusage) != 2) {
+	if (zend_hash_num_elements(Z_ARRVAL_P(rusage)) != 2) {
 		php_error_docref(NULL, E_WARNING, "rusage array must contain exactly 2 elements");
 		RETURN_FALSE;
 	}
 
-	for (zend_hash_internal_pointer_reset(rusage), i = 0;
-		 ((tmp = zend_hash_get_current_data(rusage)) != NULL) && i < 2;
-		 zend_hash_move_forward(rusage), i++) {
+	for (zend_hash_internal_pointer_reset(Z_ARRVAL_P(rusage)), i = 0;
+		 ((tmp = zend_hash_get_current_data(Z_ARRVAL_P(rusage))) != NULL) && i < 2;
+		 zend_hash_move_forward(Z_ARRVAL_P(rusage)), i++) {
 
 		client->rusage[i] = zval_get_double(tmp);
 	}
@@ -2188,19 +2201,24 @@ static void php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAMETERS, int add
 	pinba_client_t *client;
 	long hit_count = 1;
 	double value, ru_utime = 0, ru_stime = 0;
-	HashTable *tags, *rusage = NULL;
+	zval *tags, *rusage = NULL;
 	char *hashed_tags;
 	size_t hashed_tags_len, i, tags_num;
 	zval *tmp;
 	pinba_timer_t *timer;
 	pinba_timer_tag_t **new_tags;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "hd|hl", &tags, &value, &rusage, &hit_count) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 4)
+		Z_PARAM_ARRAY_EX(tags, 0, 1)
+		Z_PARAM_DOUBLE(value)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ARRAY_EX(rusage, 0, 1)
+		Z_PARAM_LONG(hit_count)
+	ZEND_PARSE_PARAMETERS_END_EX(RETURN_FALSE);
+
 	client = Z_PINBACLIENT_P(getThis());
 
-	tags_num = zend_hash_num_elements(tags);
+	tags_num = zend_hash_num_elements(Z_ARRVAL_P(tags));
 	if (!tags_num) {
 		php_error_docref(NULL, E_WARNING, "timer tags array cannot be empty");
 		RETURN_FALSE;
@@ -2216,15 +2234,15 @@ static void php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAMETERS, int add
 		RETURN_FALSE;
 	}
 
-	if (rusage && zend_hash_num_elements(rusage) != 2) {
+	if (rusage && zend_hash_num_elements(Z_ARRVAL_P(rusage)) != 2) {
 		php_error_docref(NULL, E_WARNING, "rusage array must contain exactly 2 elements");
 		RETURN_FALSE;
 	}
 
 	if (rusage) {
-		for (zend_hash_internal_pointer_reset(rusage), i = 0;
-				((tmp = zend_hash_get_current_data(rusage)) != NULL) && i < 2;
-				zend_hash_move_forward(rusage), i++) {
+		for (zend_hash_internal_pointer_reset(Z_ARRVAL_P(rusage)), i = 0;
+				((tmp = zend_hash_get_current_data(Z_ARRVAL_P(rusage))) != NULL) && i < 2;
+				zend_hash_move_forward(Z_ARRVAL_P(rusage)), i++) {
 
 			if (i == 0) {
 				ru_utime = zval_get_double(tmp);
@@ -2234,7 +2252,7 @@ static void php_pinba_client_timer_add_set(INTERNAL_FUNCTION_PARAMETERS, int add
 		}
 	}
 
-	if (php_pinba_array_to_tags(tags, &new_tags) != SUCCESS) {
+	if (php_pinba_array_to_tags(Z_ARRVAL_P(tags), &new_tags) != SUCCESS) {
 		RETURN_FALSE;
 	}
 
