@@ -47,13 +47,16 @@ typedef struct _pinba_req_data { /* {{{ */
 } pinba_req_data;
 /* }}} */
 
-typedef struct _pinba_collector {
+typedef struct {
+	int fd;
 	struct sockaddr_storage sockaddr;
 	size_t                  sockaddr_len; /* shouldn't this be socken_t ? */
 	time_t                  sockaddr_time; /* time last resolved */
+} pinba_sockaddr;
+
+typedef struct _pinba_collector {
 	char *host;
 	char *port;
-	int fd;
 } pinba_collector;
 
 ZEND_BEGIN_MODULE_GLOBALS(pinba) /* {{{ */
