@@ -940,8 +940,8 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 static inline char *php_pinba_pack_data(Pinba__Request *request, size_t *result_len) /* {{{ */
 {
 	char *data, *result_buf;
-	int data_len, result_buf_len;
-	unsigned int header;
+	int data_len, flags;
+	unsigned char header[PINBA_DATA_HEADER_SIZE];
 
 	PINBA_PACK(request, data, data_len);
 
@@ -951,18 +951,15 @@ static inline char *php_pinba_pack_data(Pinba__Request *request, size_t *result_
 		return NULL;
 	}
 
-	/* <version:4><flags:12><data_length:16> */
-	header |= data_len;
-	header = PINBA_DATA_VERSION << 28;
-
+	flags = 0;
 #ifdef HAVE_PINBA_LZ4
 	if (PINBA_G(compression) && data_len > PINBA_G(compression_threshold)) {
-		int compressed_len;
+		int compressed_len, result_buf_len;
 
 		result_buf_len = LZ4_compressBound(data_len);
 		result_buf = safe_emalloc(result_buf_len, 1, PINBA_DATA_HEADER_SIZE + 1);
 
-		header |= PINBA_DATA_FLAG_LZ4_COMPRESSED << 16;
+		flags = PINBA_DATA_FLAG_LZ4_COMPRESSED;
 		compressed_len = LZ4_compress_default(data, result_buf + PINBA_DATA_HEADER_SIZE, data_len, result_buf_len);
 
 		if (compressed_len <= 0) {
@@ -982,7 +979,15 @@ static inline char *php_pinba_pack_data(Pinba__Request *request, size_t *result_
 	}
 
 	PINBA_FREE_BUFFER();
-	memcpy(result_buf, &header, sizeof(uint32_t));
+
+	/* <version:4><flags:12><data_length_high:8><data_length_low:8> */
+	header[0] = PINBA_DATA_VERSION << 4;
+	header[0] = flags >> 8;
+	header[1] = (flags & 0xff);
+	header[2] = (data_len >> 8);
+	header[3] = (data_len & 0xff);
+
+	memcpy(result_buf, header, sizeof(header));
 	return result_buf;
 }
 /* }}} */
