@@ -982,7 +982,7 @@ static inline char *php_pinba_pack_data(Pinba__Request *request, size_t *result_
 
 	/* <version:4><flags:12><data_length_high:8><data_length_low:8> */
 	header[0] = PINBA_DATA_VERSION << 4;
-	header[0] = flags >> 8;
+	header[0] |= flags >> 8;
 	header[1] = (flags & 0xff);
 	header[2] = (data_len >> 8);
 	header[3] = (data_len & 0xff);
