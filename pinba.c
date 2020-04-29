@@ -684,7 +684,7 @@ static inline Pinba__Request *php_create_pinba_packet(pinba_client_t *client, co
 			struct mallinfo info;
 
 			info = mallinfo();
-			request->memory_footprint = info.arena + info.hblkhd;
+			request->memory_footprint = info.arena;// + info.hblkhd;
 		}
 #else
 		request->memory_footprint = 0;
