@@ -4,6 +4,8 @@ Pinba 1.1.2      31 Aug 2020
 - Added optional hit_count argument to pinba_timer_add().
 - Added per-process resolver cache.
   New INI setting pinba.resolve_interval=SECONDS is used to to manage it.
+- Removed mmap()'ed blocks from mallinfo() stats (memory stats may change!).
+- Updated protobuf-c.c code to newer version.
 
 Pinba 1.1.1      01 Feb 2018
 ----------------------------
