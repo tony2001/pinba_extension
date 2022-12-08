@@ -18,6 +18,7 @@ Pinba 1.1.0      09 Sep 2016
 - Added pinba.auto_flush INI option to control automatic flush at the end of each request. Default value is On.
 - Reimplemented the extension using protobuf-c instead of C++ Protobuf lib.
 - Added memory_footprint field to the data (uses mallinfo() where available).
+- Added pinba_get_data() function.
 - Added pinba_timers_get() function.
 - Added pinba_schema_set() function.
 - Added error message on hostname resolution failure.
