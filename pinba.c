@@ -1418,9 +1418,9 @@ static PHP_FUNCTION(pinba_timer_stop)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &timer) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_RESOURCE(timer)
+	ZEND_PARSE_PARAMETERS_END();
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
@@ -1441,9 +1441,9 @@ static PHP_FUNCTION(pinba_timer_delete)
 	zval *timer;
 	pinba_timer_t *t;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &timer) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+        Z_PARAM_RESOURCE(timer)
+	ZEND_PARSE_PARAMETERS_END();
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
@@ -1469,9 +1469,10 @@ static PHP_FUNCTION(pinba_timer_data_merge)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ra", &timer, &data) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_RESOURCE(timer)
+		Z_PARAM_ZVAL(data)
+	ZEND_PARSE_PARAMETERS_END();
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
@@ -1497,9 +1498,10 @@ static PHP_FUNCTION(pinba_timer_data_replace)
 		RETURN_FALSE;
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ra!", &timer, &data) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_RESOURCE(timer)
+		Z_PARAM_ARRAY_OR_NULL(data)
+	ZEND_PARSE_PARAMETERS_END();
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
@@ -1636,9 +1638,11 @@ static PHP_FUNCTION(pinba_flush)
 	char *script_name = NULL;
 	size_t script_name_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|sl", &script_name, &script_name_len, &flags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 2)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_STRING(script_name, script_name_len)
+		Z_PARAM_LONG(flags)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (script_name && script_name_len > 0) {
 		php_pinba_flush_data(script_name, flags);
@@ -1669,9 +1673,7 @@ static PHP_FUNCTION(pinba_get_info)
 	zval *zv;
 	pinba_timer_t *t;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "") != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_NONE();
 
 	array_init(return_value);
 
@@ -1770,9 +1772,10 @@ static PHP_FUNCTION(pinba_get_data)
 	char *data;
 	int data_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &flags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(flags)
+	ZEND_PARSE_PARAMETERS_END();
 
 	request = php_create_pinba_packet(NULL, NULL, flags);
 	if (!request) {
@@ -1793,9 +1796,9 @@ static PHP_FUNCTION(pinba_timer_get_info)
 	zval *timer;
 	pinba_timer_t *t;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &timer) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_RESOURCE(timer)
+	ZEND_PARSE_PARAMETERS_END();
 
 	PHP_ZVAL_TO_TIMER(timer, t);
 
@@ -1813,9 +1816,7 @@ static PHP_FUNCTION(pinba_timers_stop)
 	struct timeval now;
 	struct rusage u;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "") != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_NONE();
 
 	if (gettimeofday(&now, 0) != 0 || getrusage(RUSAGE_SELF, &u) != 0) {
 		RETURN_FALSE;
@@ -1844,9 +1845,10 @@ static PHP_FUNCTION(pinba_timers_get)
 	pinba_timer_t *t;
 	long flag = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &flag) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(flag)
+	ZEND_PARSE_PARAMETERS_END();
 
 	array_init(return_value);
 	for (zend_hash_internal_pointer_reset_ex(&EG(regular_list), &pos);
@@ -1879,9 +1881,9 @@ static PHP_FUNCTION(pinba_script_name_set)
 	char *script_name;
 	size_t script_name_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &script_name, &script_name_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(script_name, script_name_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (PINBA_G(script_name)) {
 		efree(PINBA_G(script_name));
@@ -1899,9 +1901,9 @@ static PHP_FUNCTION(pinba_hostname_set)
 	char *hostname;
 	size_t hostname_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &hostname, &hostname_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(hostname, hostname_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (hostname_len < sizeof(PINBA_G(host_name))) {
 		memcpy(PINBA_G(host_name), hostname, hostname_len);
@@ -1921,9 +1923,9 @@ static PHP_FUNCTION(pinba_schema_set)
 	char *schema;
 	size_t schema_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &schema, &schema_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(schema, schema_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (schema_len < sizeof(PINBA_G(schema))) {
 		memcpy(PINBA_G(schema), schema, schema_len);
@@ -1943,9 +1945,9 @@ static PHP_FUNCTION(pinba_server_name_set)
 	char *server_name;
 	size_t server_name_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &server_name, &server_name_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(server_name, server_name_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (PINBA_G(server_name)) {
 		efree(PINBA_G(server_name));
@@ -1962,9 +1964,9 @@ static PHP_FUNCTION(pinba_request_time_set)
 {
 	double time;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "d", &time) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_DOUBLE(time)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (time < 0) {
 		php_error_docref(NULL, E_WARNING, "negative request time value passed (%f), changing it to 0", time);
@@ -1983,9 +1985,10 @@ static PHP_FUNCTION(pinba_tag_set)
 	char *tag, *value;
 	size_t tag_len, value_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss", &tag, &tag_len, &value, &value_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_STRING(tag, tag_len)
+		Z_PARAM_STRING(value, value_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (tag_len < 1) {
 		php_error_docref(NULL, E_WARNING, "tag name cannot be empty");
@@ -2007,9 +2010,9 @@ static PHP_FUNCTION(pinba_tag_get)
 	char *tag, *value;
 	size_t tag_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &tag, &tag_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(tag, tag_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	value = zend_hash_str_find_ptr(&PINBA_G(tags), tag, tag_len);
 	if (!value) {
@@ -2026,9 +2029,9 @@ static PHP_FUNCTION(pinba_tag_delete)
 	char *tag;
 	size_t tag_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &tag, &tag_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(tag, tag_len)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (zend_hash_str_del(&PINBA_G(tags), tag, tag_len) == FAILURE) {
 		RETURN_FALSE;
@@ -2044,9 +2047,7 @@ static PHP_FUNCTION(pinba_tags_get)
 	char *value;
 	HashPosition pos;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "") != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_NONE();
 
 	array_init(return_value);
 	for (zend_hash_internal_pointer_reset_ex(&PINBA_G(tags), &pos);
@@ -2118,9 +2119,10 @@ static PHP_METHOD(PinbaClient, name)														\
 	char *value;																			\
 	size_t value_len;																		\
 																							\
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &value, &value_len) != SUCCESS) {		\
-		return;																				\
-	}																						\
+	ZEND_PARSE_PARAMETERS_START(1, 1)                                                       \
+		Z_PARAM_STRING(value, value_len)                                                    \
+	ZEND_PARSE_PARAMETERS_END();															\
+																							\
 	client = Z_PINBACLIENT_P(getThis());													\
 																							\
 	if (client->attr_name) {																\
@@ -2199,9 +2201,11 @@ static PHP_METHOD(PinbaClient, setTag)
 	char *tag, *value;
 	size_t tag_len, value_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss", &tag, &tag_len, &value, &value_len) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_STRING(tag, tag_len)
+		Z_PARAM_STRING(value, value_len)
+	ZEND_PARSE_PARAMETERS_END();
+
 	client = Z_PINBACLIENT_P(getThis());
 
 	/* store the copy */
@@ -2334,9 +2338,11 @@ static PHP_METHOD(PinbaClient, send)
 	pinba_client_t *client;
 	long flags = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &flags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+        Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(flags)
+	ZEND_PARSE_PARAMETERS_END();
+
 	client = Z_PINBACLIENT_P(getThis());
 
 	if (client->n_collectors == 0) {
@@ -2371,9 +2377,11 @@ static PHP_METHOD(PinbaClient, getData)
 	char *data;
 	int data_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &flags) != SUCCESS) {
-		return;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+        Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(flags)
+	ZEND_PARSE_PARAMETERS_END();
+
 	client = Z_PINBACLIENT_P(getThis());
 
 	request = php_create_pinba_packet(client, NULL, flags);
